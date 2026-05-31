@@ -1411,6 +1411,27 @@ textarea.form-control {
   color: #fff;
 }
 
+.stat-card .stat-icon.red {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.offering-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+
+#facultyAttTable .btn-sm {
+  margin-right: 4px;
+}
+
+.page-header .btn-ghost.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1024px) {
   .stat-cards {

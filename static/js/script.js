@@ -1,40 +1,41 @@
-const subjects = ['Math', 'English', 'Science', 'History', 'PE'];
-const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-
-let students = [];
-let gradesData = [];
-let attendanceData = [];
-let announcements = [];
 let userProfile = {};
+let userRole = '';
+let cachedAnnouncements = [];
+
+function getAuthHeaders() {
+  const stored = localStorage.getItem('smsUser');
+  if (!stored) return {};
+  const u = JSON.parse(stored);
+  return { 'X-Username': u.username };
+}
 
 const API = {
   async get(url) {
-    const r = await fetch(url);
+    const r = await fetch(url, { headers: { ...getAuthHeaders() } });
     if (!r.ok) throw new Error((await r.json()).error || 'Request failed');
     return r.json();
   },
   async post(url, body) {
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(body) });
     if (!r.ok) throw new Error((await r.json()).error || 'Request failed');
     return r.json();
   },
   async put(url, body) {
-    const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(body) });
     if (!r.ok) throw new Error((await r.json()).error || 'Request failed');
     return r.json();
   },
   async del(url) {
-    const r = await fetch(url, { method: 'DELETE' });
+    const r = await fetch(url, { method: 'DELETE', headers: { ...getAuthHeaders() } });
     if (!r.ok) throw new Error((await r.json()).error || 'Request failed');
     return r.json();
   }
 };
 
-// ===== UTILITY FUNCTIONS =====
-
 function getPageName() {
   const path = window.location.pathname;
-  return path.replace(/^\//, '') || 'dashboard';
+  const parts = path.replace(/^\//, '').split('/');
+  return parts.join('_');
 }
 
 function getGradeClass(score) {
@@ -44,8 +45,6 @@ function getGradeClass(score) {
   return 'grade-d';
 }
 
-function average(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
-
 const avatarColors = ['#3b82f6', '#8b5cf6', '#06b6d4', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6'];
 
 function getAvatarColor(name) {
@@ -53,86 +52,6 @@ function getAvatarColor(name) {
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return avatarColors[Math.abs(hash) % avatarColors.length];
 }
-
-function animateCounter(el, target, duration) {
-  duration = duration || 800;
-  const startTime = performance.now();
-  function tick(now) {
-    const elapsed = now - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    const current = Math.round(eased * target);
-    el.textContent = progress < 1 ? current : target;
-    if (progress < 1) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
-
-// ===== SORT + PAGINATE UTILITIES =====
-
-let sortState = { field: null, asc: true };
-let currentPage = 1;
-const perPage = 8;
-
-function setSort(field, renderFnName) {
-  if (sortState.field === field) { sortState.asc = !sortState.asc; }
-  else { sortState.field = field; sortState.asc = true; }
-  if (typeof window[renderFnName] === 'function') window[renderFnName]();
-}
-
-function sortData(data) {
-  if (!sortState.field) return data;
-  const f = sortState.field;
-  const sign = sortState.asc ? 1 : -1;
-  return [...data].sort((a, b) => {
-    let va = a[f], vb = b[f];
-    if (f === 'year' || f === 'id' || f === 'average' || f === 'attPct') return sign * (va - vb);
-    va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
-    if (va < vb) return -sign;
-    if (va > vb) return sign;
-    return 0;
-  });
-}
-
-function sortArrow(field) {
-  if (sortState.field !== field) return '<span class="sort-arrow">↕</span>';
-  return `<span class="sort-arrow">${sortState.asc ? '▲' : '▼'}</span>`;
-}
-
-function sortableHeader(label, field) {
-  const active = sortState.field === field ? ' active' : '';
-  return `<th class="sortable${active}" onclick="setSort('${field}', window.currentRenderFn)">${label} ${sortArrow(field)}</th>`;
-}
-
-function paginateData(data) {
-  const totalPages = Math.ceil(data.length / perPage) || 1;
-  if (currentPage > totalPages) currentPage = totalPages;
-  const start = (currentPage - 1) * perPage;
-  return data.slice(start, start + perPage);
-}
-
-function renderPagination(totalItems, renderFn) {
-  const container = document.getElementById('paginationControls');
-  if (!container) return;
-  const totalPages = Math.ceil(totalItems / perPage) || 1;
-  if (totalPages <= 1) { container.innerHTML = ''; return; }
-  let html = `<button class="page-btn" onclick="goToPage(${currentPage - 1}, '${renderFn}')" ${currentPage <= 1 ? 'disabled' : ''}>&laquo; Prev</button>`;
-  for (let i = 1; i <= totalPages; i++) {
-    html += `<button class="page-btn${i === currentPage ? ' active' : ''}" onclick="goToPage(${i}, '${renderFn}')">${i}</button>`;
-  }
-  html += `<button class="page-btn" onclick="goToPage(${currentPage + 1}, '${renderFn}')" ${currentPage >= totalPages ? 'disabled' : ''}>Next &raquo;</button>`;
-  html += `<span class="page-info">${totalItems} total</span>`;
-  container.innerHTML = html;
-}
-
-function goToPage(page, renderFnName) {
-  currentPage = page;
-  if (renderFnName === 'renderStudents') renderStudents(document.getElementById('studentSearch')?.value);
-  else if (renderFnName === 'renderGrades') renderGrades();
-  else if (renderFnName === 'renderAttendance') renderAttendance();
-}
-
-// ===== TOAST SYSTEM =====
 
 function showToast(message, type) {
   const container = document.getElementById('toastContainer');
@@ -145,16 +64,12 @@ function showToast(message, type) {
   setTimeout(() => { if (toast.parentNode) toast.remove(); }, 3500);
 }
 
-// ===== MODAL SYSTEM =====
-
 function openModal(id) { const el = document.getElementById(id); if (el) el.classList.add('show'); }
 function closeModal(id) { const el = document.getElementById(id); if (el) el.classList.remove('show'); }
 
 document.addEventListener('click', function (e) {
   if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('show');
 });
-
-// ===== DARK MODE =====
 
 function toggleDarkMode() {
   document.documentElement.classList.toggle('dark-mode');
@@ -169,250 +84,694 @@ function initDarkMode() {
   if (btn) { btn.textContent = isDark ? '☀️' : '🌙'; btn.addEventListener('click', toggleDarkMode); }
 }
 
-// ===== NOTIFICATION BELL =====
-
-function renderBellDropdown() {
-  const bell = document.querySelector('.notification-bell');
-  if (!bell) return;
-  const dropdown = bell.querySelector('.bell-dropdown');
-  const badge = bell.querySelector('.bell-badge');
-  const recent = announcements.slice(-4).reverse();
-  if (badge) badge.textContent = announcements.length;
-  if (!dropdown) return;
-  dropdown.innerHTML = `<div class="bell-header">Recent Announcements</div>`;
-  if (!recent.length) {
-    dropdown.innerHTML += `<div class="bell-empty">No announcements yet</div>`;
-  } else {
-    recent.forEach(a => {
-      dropdown.innerHTML += `<div class="bell-item"><div class="bell-item-title">${a.title}</div><div class="bell-item-meta">${a.date}</div></div>`;
-    });
-  }
-}
-
-function initNotificationBell() {
-  const bell = document.querySelector('.notification-bell');
-  if (!bell) return;
-  const dropdown = bell.querySelector('.bell-dropdown');
-  bell.addEventListener('click', function (e) {
-    renderBellDropdown();
-    e.stopPropagation();
-    dropdown.classList.toggle('show');
-  });
-  document.addEventListener('click', function () { dropdown.classList.remove('show'); });
-}
-
-// ===== SIDEBAR =====
-
 function initSidebar() {
   document.querySelectorAll('.hamburger').forEach(btn => {
     btn.addEventListener('click', () => { document.querySelector('.sidebar').classList.toggle('open'); });
   });
-  const page = getPageName();
-  document.querySelectorAll('.sidebar-nav a').forEach(a => {
-    const href = a.getAttribute('href');
-    if (href && href.replace(/^\//, '') === page) a.classList.add('active');
-  });
 }
-
-// ===== AVATARS =====
 
 function initAvatars() {
   document.querySelectorAll('.user-avatar').forEach(el => {
-    const name = el.getAttribute('data-name') || userProfile.name || 'Admin User';
+    const name = el.getAttribute('data-name') || 'User';
     el.textContent = name.charAt(0).toUpperCase();
     el.style.background = getAvatarColor(name);
   });
 }
 
-// ===== STUDENTS PAGE =====
+// ======================== LOGIN ========================
 
-window.currentRenderFn = 'renderStudents';
+function initLogin() {
+  const form = document.getElementById('loginForm');
+  if (!form) return;
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const data = new FormData(this);
+    const errorEl = document.querySelector('.login-error');
+    try {
+      const res = await API.post('/api/login', { username: data.get('username'), password: data.get('password') });
+      localStorage.setItem('smsUser', JSON.stringify(res));
+      window.location.href = res.redirect || '/admin/dashboard';
+    } catch {
+      if (errorEl) { errorEl.textContent = 'Invalid username or password'; errorEl.classList.add('show'); }
+    }
+  });
+}
+
+// ======================== COMMON ========================
+
+async function loadUserProfile() {
+  const stored = localStorage.getItem('smsUser');
+  if (!stored) { window.location.href = '/login'; return; }
+  const u = JSON.parse(stored);
+  try {
+    userProfile = await API.get('/api/profile', { headers: { 'X-Username': u.username } });
+  } catch {
+    userProfile = u;
+  }
+  userRole = userProfile.role || u.role;
+  const nameEl = document.getElementById('headerUserName');
+  if (nameEl) nameEl.textContent = userProfile.name || u.name;
+  document.querySelectorAll('.user-avatar').forEach(el => {
+    const n = userProfile.name || u.name;
+    el.textContent = n.charAt(0);
+    el.style.background = getAvatarColor(n);
+  });
+}
+
+async function loadAnnouncements() {
+  return API.get('/api/announcements');
+}
+
+function toggleBellDropdown(bell) {
+  const dropdown = bell.querySelector('.bell-dropdown');
+  if (!dropdown) return;
+  const isOpen = dropdown.classList.contains('show');
+  document.querySelectorAll('.bell-dropdown.show').forEach(d => d.classList.remove('show'));
+  if (isOpen) return;
+  dropdown.classList.add('show');
+  if (!cachedAnnouncements.length) {
+    dropdown.innerHTML = '<div class="bell-header">Notifications</div><div class="bell-empty">No notifications</div>';
+    return;
+  }
+  dropdown.innerHTML = `<div class="bell-header">Notifications (${cachedAnnouncements.length})</div>
+    ${cachedAnnouncements.slice().reverse().map(a => `
+      <div class="bell-item">
+        <div class="bell-item-title">${a.title}</div>
+        <div class="bell-item-meta">${a.date}${a.author ? ' \u00b7 ' + a.author : ''}</div>
+        <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;line-height:1.4;">${a.body.length > 120 ? a.body.slice(0, 120) + '...' : a.body}</div>
+      </div>
+    `).join('')}`;
+}
+
+// ======================== ADMIN: DASHBOARD ========================
+
+async function renderAdminDashboard() {
+  const container = document.getElementById('adminDashboardContent');
+  if (!container) return;
+  try {
+    const [stats, announcements] = await Promise.all([
+      API.get('/api/dashboard/stats'),
+      API.get('/api/announcements'),
+    ]);
+    const recent = announcements.slice(-3).reverse();
+    container.innerHTML = `
+      <div class="stat-cards">
+        <div class="card stat-card"><div class="stat-icon blue">👥</div><div class="stat-info"><h3>${stats.total_students}</h3><p>Total Students</p></div></div>
+        <div class="card stat-card"><div class="stat-icon green">👨‍🏫</div><div class="stat-info"><h3>${stats.total_faculties}</h3><p>Faculty</p></div></div>
+        <div class="card stat-card"><div class="stat-icon yellow">📅</div><div class="stat-info"><h3>${stats.total_offerings}</h3><p>Class Offerings</p></div></div>
+        <div class="card stat-card"><div class="stat-icon purple">📝</div><div class="stat-info"><h3>${stats.pending_enrollments}</h3><p>Pending Enrollments</p></div></div>
+      </div>
+      <div class="card" style="padding:22px;">
+        <h3 style="font-size:1.05rem;margin-bottom:16px;">Recent Announcements</h3>
+        ${recent.length ? recent.map(a => `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><div style="display:flex;justify-content:space-between;align-items:center;"><strong>${a.title}</strong><span style="font-size:0.8rem;color:var(--text-muted);">${a.date}</span></div><p style="color:var(--text-muted);font-size:0.85rem;margin-top:4px;">${a.body.slice(0,100)}${a.body.length>100?'...':''}</p></div>`).join('') : '<p style="color:var(--text-muted);">No announcements yet.</p>'}
+      </div>`;
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== ADMIN: DEPARTMENTS ========================
+
+async function loadDepartments() {
+  const data = await API.get('/api/departments');
+  const table = document.getElementById('deptsTable');
+  if (!table) return;
+  table.innerHTML = `<thead><tr><th>Name</th><th>Code</th><th>Actions</th></tr></thead><tbody>
+    ${data.map(d => `<tr><td><strong>${d.name}</strong></td><td>${d.code}</td><td><button class="btn btn-sm btn-primary" onclick="editDept(${d.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteDept(${d.id})">Delete</button></td></tr>`).join('')}
+  </tbody>`;
+}
+
+async function initDepartments() {
+  await loadDepartments();
+  document.getElementById('addDeptForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    try {
+      await API.post('/api/departments', { name: fd.get('name'), code: fd.get('code') });
+      await loadDepartments();
+      closeModal('addDeptModal');
+      this.reset();
+      showToast('Department added', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+  document.getElementById('editDeptForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const id = fd.get('id');
+    try {
+      await API.put(`/api/departments/${id}`, { name: fd.get('name'), code: fd.get('code') });
+      await loadDepartments();
+      closeModal('editDeptModal');
+      showToast('Department updated', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
+function editDept(id) {
+  const table = document.getElementById('deptsTable');
+  const row = table.querySelector(`tbody tr:nth-child(${id})`);
+  API.get('/api/departments').then(depts => {
+    const d = depts.find(x => x.id === id);
+    if (!d) return;
+    document.getElementById('editDeptId').value = d.id;
+    document.getElementById('editDeptName').value = d.name;
+    document.getElementById('editDeptCode').value = d.code;
+    openModal('editDeptModal');
+  });
+}
+
+async function deleteDept(id) {
+  if (!confirm('Delete this department?')) return;
+  try {
+    await API.del(`/api/departments/${id}`);
+    await loadDepartments();
+    showToast('Department deleted', 'success');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== ADMIN: COURSES ========================
+
+async function loadCourses() {
+  const [courses, depts] = await Promise.all([API.get('/api/courses'), API.get('/api/departments')]);
+  const table = document.getElementById('coursesTable');
+  if (!table) return;
+  const deptOpts = () => depts.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  table.innerHTML = `<thead><tr><th>Name</th><th>Code</th><th>Department</th><th>Actions</th></tr></thead><tbody>
+    ${courses.map(c => `<tr><td><strong>${c.name}</strong></td><td>${c.code}</td><td>${c.department_name}</td><td><button class="btn btn-sm btn-primary" onclick="editCourse(${c.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteCourse(${c.id})">Delete</button></td></tr>`).join('')}
+  </tbody>`;
+  ['addCourseDept', 'editCourseDept'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Select department</option>' + deptOpts();
+  });
+  window._courses = courses;
+  window._depts = depts;
+}
+
+async function initCourses() {
+  await loadCourses();
+  document.getElementById('addCourseForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    try {
+      await API.post('/api/courses', { name: fd.get('name'), code: fd.get('code'), department_id: parseInt(fd.get('department_id')) });
+      await loadCourses();
+      closeModal('addCourseModal');
+      this.reset();
+      showToast('Course added', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+  document.getElementById('editCourseForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const id = fd.get('id');
+    try {
+      await API.put(`/api/courses/${id}`, { name: fd.get('name'), code: fd.get('code'), department_id: parseInt(fd.get('department_id')) });
+      await loadCourses();
+      closeModal('editCourseModal');
+      showToast('Course updated', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
+function editCourse(id) {
+  const c = (window._courses || []).find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('editCourseId').value = c.id;
+  document.getElementById('editCourseName').value = c.name;
+  document.getElementById('editCourseCode').value = c.code;
+  document.getElementById('editCourseDept').value = c.department_id;
+  openModal('editCourseModal');
+}
+
+async function deleteCourse(id) {
+  if (!confirm('Delete this course?')) return;
+  try { await API.del(`/api/courses/${id}`); await loadCourses(); showToast('Course deleted', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== ADMIN: SUBJECTS ========================
+
+async function loadSubjects() {
+  const [subjects, courses] = await Promise.all([API.get('/api/subjects'), API.get('/api/courses')]);
+  const table = document.getElementById('subjectsTable');
+  if (!table) return;
+  const courseOpts = () => courses.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  table.innerHTML = `<thead><tr><th>Name</th><th>Code</th><th>Course</th><th>Units</th><th>Actions</th></tr></thead><tbody>
+    ${subjects.map(s => `<tr><td><strong>${s.name}</strong></td><td>${s.code}</td><td>${s.course_name}</td><td>${s.units}</td><td><button class="btn btn-sm btn-primary" onclick="editSubject(${s.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteSubject(${s.id})">Delete</button></td></tr>`).join('')}
+  </tbody>`;
+  ['addSubjCourse', 'editSubjCourse'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Select course</option>' + courseOpts();
+  });
+  window._subjects = subjects;
+  window._courses = courses;
+}
+
+async function initSubjects() {
+  await loadSubjects();
+  document.getElementById('addSubjectForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    try {
+      await API.post('/api/subjects', { name: fd.get('name'), code: fd.get('code'), course_id: parseInt(fd.get('course_id')), units: parseInt(fd.get('units') || 3) });
+      await loadSubjects();
+      closeModal('addSubjectModal');
+      this.reset();
+      showToast('Subject added', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+  document.getElementById('editSubjectForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const id = fd.get('id');
+    try {
+      await API.put(`/api/subjects/${id}`, { name: fd.get('name'), code: fd.get('code'), course_id: parseInt(fd.get('course_id')), units: parseInt(fd.get('units') || 3) });
+      await loadSubjects();
+      closeModal('editSubjectModal');
+      showToast('Subject updated', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
+function editSubject(id) {
+  const s = (window._subjects || []).find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('editSubjId').value = s.id;
+  document.getElementById('editSubjName').value = s.name;
+  document.getElementById('editSubjCode').value = s.code;
+  document.getElementById('editSubjCourse').value = s.course_id;
+  document.getElementById('editSubjUnits').value = s.units;
+  openModal('editSubjectModal');
+}
+
+async function deleteSubject(id) {
+  if (!confirm('Delete this subject?')) return;
+  try { await API.del(`/api/subjects/${id}`); await loadSubjects(); showToast('Subject deleted', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== ADMIN: FACULTIES ========================
+
+async function loadFaculties() {
+  const [faculties, depts] = await Promise.all([API.get('/api/faculties'), API.get('/api/departments')]);
+  const table = document.getElementById('facultiesTable');
+  if (!table) return;
+  const deptOpts = () => depts.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  table.innerHTML = `<thead><tr><th>Name</th><th>Email</th><th>Username</th><th>Department</th><th>Actions</th></tr></thead><tbody>
+    ${faculties.map(f => `<tr><td><strong>${f.name}</strong></td><td>${f.email}</td><td>${f.username}</td><td>${f.department_name}</td><td><button class="btn btn-sm btn-primary" onclick="editFaculty(${f.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteFaculty(${f.id})">Delete</button></td></tr>`).join('')}
+  </tbody>`;
+  ['addFacDept', 'editFacDept'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Select department</option>' + deptOpts();
+  });
+  window._faculties = faculties;
+}
+
+async function initFaculties() {
+  await loadFaculties();
+  document.getElementById('addFacultyForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    try {
+      const payload = { name: fd.get('name'), email: fd.get('email'), username: fd.get('username') || fd.get('email').split('@')[0].toLowerCase(), department_id: parseInt(fd.get('department_id')) };
+      const res = await API.post('/api/faculties', payload);
+      await loadFaculties();
+      closeModal('addFacultyModal');
+      this.reset();
+      showToast(`Faculty added. Username: ${payload.username}, Password: faculty123`, 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+  document.getElementById('editFacultyForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const id = fd.get('id');
+    try {
+      await API.put(`/api/faculties/${id}`, { name: fd.get('name'), email: fd.get('email'), department_id: parseInt(fd.get('department_id')) });
+      await loadFaculties();
+      closeModal('editFacultyModal');
+      showToast('Faculty updated', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
+function editFaculty(id) {
+  const f = (window._faculties || []).find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('editFacId').value = f.id;
+  document.getElementById('editFacName').value = f.name;
+  document.getElementById('editFacEmail').value = f.email;
+  document.getElementById('editFacDept').value = f.department_id;
+  openModal('editFacultyModal');
+}
+
+async function deleteFaculty(id) {
+  if (!confirm('Delete this faculty?')) return;
+  try { await API.del(`/api/faculties/${id}`); await loadFaculties(); showToast('Faculty deleted', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== ADMIN: OFFERINGS ========================
+
+async function loadOfferings() {
+  const [offerings, subjects, faculties] = await Promise.all([
+    API.get('/api/offerings'), API.get('/api/subjects'), API.get('/api/faculties')
+  ]);
+  const table = document.getElementById('offeringsTable');
+  if (!table) return;
+  const subjOpts = () => subjects.map(s => `<option value="${s.id}">${s.code} - ${s.name}</option>`).join('');
+  const facOpts = () => faculties.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+  table.innerHTML = `<thead><tr><th>Subject</th><th>Section</th><th>Schedule</th><th>Faculty</th><th>Semester</th><th>School Year</th><th>Actions</th></tr></thead><tbody>
+    ${offerings.map(o => `<tr><td><strong>${o.subject_name}</strong></td><td>${o.section}</td><td>${o.schedule}</td><td>${o.faculty_name}</td><td>${o.semester}</td><td>${o.school_year}</td><td><button class="btn btn-sm btn-primary" onclick="editOffering(${o.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteOffering(${o.id})">Delete</button></td></tr>`).join('')}
+  </tbody>`;
+  ['addOffSubject', 'editOffSubject'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Select subject</option>' + subjOpts();
+  });
+  ['addOffFaculty', 'editOffFaculty'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Select faculty</option>' + facOpts();
+  });
+  window._offerings = offerings;
+  window._subjects = subjects;
+  window._faculties = faculties;
+}
+
+async function initOfferings() {
+  await loadOfferings();
+  document.getElementById('addOfferingForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    try {
+      await API.post('/api/offerings', {
+        subject_id: parseInt(fd.get('subject_id')), section: fd.get('section'),
+        schedule: fd.get('schedule'), faculty_id: parseInt(fd.get('faculty_id')),
+        semester: fd.get('semester'), school_year: fd.get('school_year')
+      });
+      await loadOfferings();
+      closeModal('addOfferingModal');
+      this.reset();
+      showToast('Offering created', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+  document.getElementById('editOfferingForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const id = fd.get('id');
+    try {
+      await API.put(`/api/offerings/${id}`, {
+        subject_id: parseInt(fd.get('subject_id')), section: fd.get('section'),
+        schedule: fd.get('schedule'), faculty_id: parseInt(fd.get('faculty_id')),
+        semester: fd.get('semester'), school_year: fd.get('school_year')
+      });
+      await loadOfferings();
+      closeModal('editOfferingModal');
+      showToast('Offering updated', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
+function editOffering(id) {
+  const o = (window._offerings || []).find(x => x.id === id);
+  if (!o) return;
+  document.getElementById('editOffId').value = o.id;
+  document.getElementById('editOffSubject').value = o.subject_id;
+  document.getElementById('editOffSection').value = o.section;
+  document.getElementById('editOffSchedule').value = o.schedule;
+  document.getElementById('editOffFaculty').value = o.faculty_id;
+  document.getElementById('editOffSemester').value = o.semester;
+  document.getElementById('editOffSchoolYear').value = o.school_year;
+  openModal('editOfferingModal');
+}
+
+async function deleteOffering(id) {
+  if (!confirm('Delete this offering?')) return;
+  try { await API.del(`/api/offerings/${id}`); await loadOfferings(); showToast('Offering deleted', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== ADMIN: STUDENTS ========================
+
+let studentsData = [];
+let currentPage = 1;
+const perPage = 8;
+let sortState = { field: null, asc: true };
+
+function sortData(data) {
+  if (!sortState.field) return data;
+  const f = sortState.field;
+  const sign = sortState.asc ? 1 : -1;
+  return [...data].sort((a, b) => {
+    let va = a[f], vb = b[f];
+    if (f === 'year' || f === 'id') return sign * (va - vb);
+    va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+    return va < vb ? -sign : va > vb ? sign : 0;
+  });
+}
+
+function sortArrow(field) {
+  if (sortState.field !== field) return '<span class="sort-arrow">↕</span>';
+  return `<span class="sort-arrow">${sortState.asc ? '▲' : '▼'}</span>`;
+}
+
+function sortableHeader(label, field) {
+  const active = sortState.field === field ? ' active' : '';
+  return `<th class="sortable${active}" onclick="setSort('${field}')">${label} ${sortArrow(field)}</th>`;
+}
+
+function setSort(field) {
+  if (sortState.field === field) sortState.asc = !sortState.asc;
+  else { sortState.field = field; sortState.asc = true; }
+  renderStudents(document.getElementById('studentSearch')?.value);
+}
+
+function paginateData(data) {
+  const totalPages = Math.ceil(data.length / perPage) || 1;
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * perPage;
+  return data.slice(start, start + perPage);
+}
+
+function renderPagination(totalItems) {
+  const container = document.getElementById('paginationControls');
+  if (!container) return;
+  const totalPages = Math.ceil(totalItems / perPage) || 1;
+  if (totalPages <= 1) { container.innerHTML = ''; return; }
+  let html = `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>&laquo; Prev</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    html += `<button class="page-btn${i === currentPage ? ' active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+  }
+  html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>Next &raquo;</button>`;
+  html += `<span class="page-info">${totalItems} total</span>`;
+  container.innerHTML = html;
+}
+
+function goToPage(page) {
+  currentPage = page;
+  renderStudents(document.getElementById('studentSearch')?.value);
+}
 
 async function loadStudents() {
-  students = await API.get('/api/students');
+  studentsData = await API.get('/api/students');
+  return studentsData;
 }
 
 function renderStudents(filter) {
-  window.currentRenderFn = 'renderStudents';
   const table = document.getElementById('studentsTable');
   if (!table) return;
-  let list = students;
+  let list = studentsData;
   if (filter) {
     const q = filter.toLowerCase();
-    list = students.filter(s => s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || s.course.toLowerCase().includes(q));
+    list = studentsData.filter(s => s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.student_number && s.student_number.toLowerCase().includes(q)));
   }
   const sorted = sortData(list);
   const pageData = paginateData(sorted);
-  renderPagination(sorted.length, 'renderStudents');
+  renderPagination(sorted.length);
 
-  let html = `<thead><tr>${sortableHeader('ID', 'id')}${sortableHeader('Name', 'name')}${sortableHeader('Email', 'email')}${sortableHeader('Course', 'course')}${sortableHeader('Year', 'year')}<th>Actions</th></tr></thead><tbody>`;
-
+  let html = `<thead><tr>${sortableHeader('Student #', 'student_number')}${sortableHeader('Name', 'name')}${sortableHeader('Email', 'email')}${sortableHeader('Course', 'course_name')}${sortableHeader('Year', 'year')}<th>Actions</th></tr></thead><tbody>`;
   if (!pageData.length) {
     html += `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><p>No students found</p></div></td></tr>`;
   } else {
     pageData.forEach(s => {
-      html += `<tr><td>${s.id}</td><td><strong>${s.name}</strong></td><td>${s.email}</td><td>${s.course}</td><td>Year ${s.year}</td><td><button class="btn btn-sm btn-primary" onclick="editStudent(${s.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`;
+      html += `<tr><td>${s.student_number}</td><td><strong>${s.name}</strong></td><td>${s.email}</td><td>${s.course_name}</td><td>Year ${s.year}</td><td><button class="btn btn-sm btn-primary" onclick="editStudent(${s.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`;
     });
   }
   html += `</tbody>`;
   table.innerHTML = html;
 }
 
-async function initStudents() {
+async function initStudentsPage() {
   await loadStudents();
+  const courses = await API.get('/api/courses');
+  const courseOpts = () => courses.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  ['addCourse', 'editCourse'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Select course</option>' + courseOpts();
+  });
   const searchInput = document.getElementById('studentSearch');
-  if (searchInput) { searchInput.addEventListener('input', function () { currentPage = 1; renderStudents(this.value); }); }
+  if (searchInput) searchInput.addEventListener('input', function () { currentPage = 1; renderStudents(this.value); });
   renderStudents('');
 
-  const addForm = document.getElementById('addStudentForm');
-  if (addForm) {
-    addForm.addEventListener('submit', async function (e) {
-      e.preventDefault();
-      const data = new FormData(this);
-      const payload = { name: data.get('name'), email: data.get('email'), course: data.get('course'), year: parseInt(data.get('year')) };
-      if (payload.year < 1 || payload.year > 5) { showToast('Year must be between 1 and 5', 'error'); return; }
-      try {
-        await API.post('/api/students', payload);
-        await loadStudents();
-        renderStudents(document.getElementById('studentSearch').value);
-        closeModal('addStudentModal');
-        this.reset();
-        showToast('Student added successfully', 'success');
-      } catch (err) { showToast(err.message, 'error'); }
-    });
-  }
+  document.getElementById('addStudentForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    try {
+      const res = await API.post('/api/students', {
+        student_number: fd.get('student_number'), name: fd.get('name'), email: fd.get('email'),
+        course_id: parseInt(fd.get('course_id')), year: parseInt(fd.get('year'))
+      });
+      await loadStudents();
+      renderStudents(document.getElementById('studentSearch').value);
+      closeModal('addStudentModal');
+      this.reset();
+      showToast(`Student added. Username: ${res.username}, Password: ${res.password}`, 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
 
-  const editForm = document.getElementById('editStudentForm');
-  if (editForm) {
-    editForm.addEventListener('submit', async function (e) {
-      e.preventDefault();
-      const data = new FormData(this);
-      const id = parseInt(data.get('id'));
-      const payload = { name: data.get('name'), email: data.get('email'), course: data.get('course'), year: parseInt(data.get('year')) };
-      if (payload.year < 1 || payload.year > 5) { showToast('Year must be between 1 and 5', 'error'); return; }
-      try {
-        await API.put(`/api/students/${id}`, payload);
-        await loadStudents();
-        renderStudents(document.getElementById('studentSearch').value);
-        closeModal('editStudentModal');
-        showToast('Student updated successfully', 'success');
-      } catch (err) { showToast(err.message, 'error'); }
-    });
-  }
+  document.getElementById('editStudentForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const id = parseInt(fd.get('id'));
+    try {
+      await API.put(`/api/students/${id}`, { name: fd.get('name'), email: fd.get('email'), course_id: parseInt(fd.get('course_id')), year: parseInt(fd.get('year')) });
+      await loadStudents();
+      renderStudents(document.getElementById('studentSearch').value);
+      closeModal('editStudentModal');
+      showToast('Student updated', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
 }
 
 function editStudent(id) {
-  const student = students.find(s => s.id === id);
-  if (!student) return;
-  document.getElementById('editId').value = student.id;
-  document.getElementById('editName').value = student.name;
-  document.getElementById('editEmail').value = student.email;
-  document.getElementById('editCourse').value = student.course;
-  document.getElementById('editYear').value = student.year;
+  const s = studentsData.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('editId').value = s.id;
+  document.getElementById('editName').value = s.name;
+  document.getElementById('editEmail').value = s.email;
+  document.getElementById('editCourse').value = s.course_id;
+  document.getElementById('editYear').value = s.year;
   openModal('editStudentModal');
 }
 
 async function deleteStudent(id) {
-  if (!confirm('Are you sure you want to delete this student?')) return;
-  try {
-    await API.del(`/api/students/${id}`);
-    await loadStudents();
-    renderStudents(document.getElementById('studentSearch').value);
-    showToast('Student deleted successfully', 'success');
-  } catch (err) { showToast(err.message, 'error'); }
+  if (!confirm('Delete this student?')) return;
+  try { await API.del(`/api/students/${id}`); await loadStudents(); renderStudents(document.getElementById('studentSearch')?.value); showToast('Student deleted', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
 }
 
-// ===== GRADES PAGE =====
+// ======================== ADMIN: ENROLLMENTS ========================
 
-window.currentRenderFn = 'renderGrades';
+let enrollmentFilter = 'All';
 
-async function loadGrades() {
-  gradesData = await API.get('/api/grades');
+async function loadEnrollments() {
+  const status = enrollmentFilter === 'All' ? '' : enrollmentFilter;
+  const url = status ? `/api/enrollments?status=${status}` : '/api/enrollments';
+  const data = await API.get(url);
+  const table = document.getElementById('enrollmentsTable');
+  if (!table) return;
+  table.innerHTML = `<thead><tr><th>Student</th><th>Student #</th><th>Subjects</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead><tbody>
+    ${data.length ? data.map(e => `<tr>
+      <td><strong>${e.student_name}</strong></td><td>${e.student_number}</td>
+      <td>${(e.items || []).map(i => i.subject_name).join(', ')}</td>
+      <td><span class="badge ${e.status === 'Approved' ? 'badge-success' : e.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${e.status}</span></td>
+      <td>${e.date}</td>
+      <td>${e.status === 'Pending' ? `<button class="btn btn-sm btn-success" onclick="approveEnrollment(${e.id})">Approve</button> <button class="btn btn-sm btn-danger" onclick="rejectEnrollment(${e.id})">Reject</button>` : '<span style="color:var(--text-muted);font-size:0.85rem;">Done</span>'}</td>
+    </tr>`).join('') : `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><p>No enrollments found</p></div></td></tr>`}
+  </tbody>`;
 }
 
-function renderGrades() {
-  window.currentRenderFn = 'renderGrades';
-  const container = document.getElementById('gradesContainer');
+function filterEnrollments(status) {
+  enrollmentFilter = status;
+  loadEnrollments();
+  document.querySelectorAll('.page-header .btn-ghost').forEach(b => b.classList.remove('btn-primary'));
+  const btn = document.getElementById(`filter${status}`);
+  if (btn) { btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary'); }
+}
+
+async function initEnrollments() {
+  filterEnrollments('Pending');
+}
+
+async function approveEnrollment(id) {
+  try { await API.put(`/api/enrollments/${id}/approve`); await loadEnrollments(); showToast('Enrollment approved', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
+}
+
+async function rejectEnrollment(id) {
+  try { await API.put(`/api/enrollments/${id}/reject`); await loadEnrollments(); showToast('Enrollment rejected', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== ADMIN: GRADES OVERVIEW ========================
+
+async function initAdminGrades() {
+  const offerings = await API.get('/api/offerings');
+  const sel = document.getElementById('adminGradeOffering');
+  if (sel) sel.innerHTML = '<option value="">Select offering</option>' + offerings.map(o => `<option value="${o.id}">${o.subject_name} - ${o.section} (${o.schedule})</option>`).join('');
+}
+
+async function loadAdminGrades() {
+  const sel = document.getElementById('adminGradeOffering');
+  const oid = parseInt(sel?.value);
+  if (!oid) { showToast('Please select an offering', 'error'); return; }
+  const container = document.getElementById('adminGradesContainer');
   if (!container) return;
-
-  const enriched = gradesData.map(g => {
-    const vals = subjects.map(s => g.grades[s] || 0);
-    return { ...g, average: average(vals) };
-  });
-  const sorted = sortData(enriched);
-
-  let html = `<div class="table-container"><table id="gradesTable"><thead><tr>${sortableHeader('Student', 'name')}${subjects.map(s => `<th>${s}</th>`).join('')}${sortableHeader('Average', 'average')}</tr></thead><tbody>`;
-  sorted.forEach(g => {
-    const vals = subjects.map(s => g.grades[s] || 0);
-    html += `<tr><td><strong>${g.name}</strong></td>${vals.map(v => `<td class="${getGradeClass(v)}">${v}</td>`).join('')}<td><strong class="${getGradeClass(g.average)}">${g.average.toFixed(1)}</strong></td></tr>`;
+  const grades = await API.get(`/api/reports/grades?offering_id=${oid}`);
+  if (!grades.students || !grades.students.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><p>No grades found for this offering</p></div>';
+    return;
+  }
+  let html = `<div class="table-container"><table><thead><tr><th>Student</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Final Grade</th><th>Status</th></tr></thead><tbody>`;
+  grades.students.forEach(g => {
+    html += `<tr><td><strong>${g.student_name}</strong></td><td class="${getGradeClass(g.prelim)}">${g.prelim}</td><td class="${getGradeClass(g.midterm)}">${g.midterm}</td><td class="${getGradeClass(g.final)}">${g.final}</td><td><strong class="${getGradeClass(g.final_grade)}">${g.final_grade}</strong></td><td><span class="badge ${g.grade_status === 'Passed' ? 'badge-success' : 'badge-danger'}">${g.grade_status}</span></td></tr>`;
   });
   html += `</tbody></table></div>`;
-
-  const allGrades = gradesData.flatMap(g => subjects.map(s => g.grades[s] || 0));
-  const overallAvg = average(allGrades);
-  const highest = Math.max(...allGrades);
-  const lowest = Math.min(...allGrades);
-
-  html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 24px;">
-    <div class="card" style="padding: 18px;"><p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 4px;">Overall Average</p><h3 class="${getGradeClass(overallAvg)}">${overallAvg.toFixed(1)}%</h3></div>
-    <div class="card" style="padding: 18px;"><p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 4px;">Highest Grade</p><h3 style="color: #16a34a;">${highest}%</h3></div>
-    <div class="card" style="padding: 18px;"><p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 4px;">Lowest Grade</p><h3 style="color: #dc2626;">${lowest}%</h3></div>
-    <div class="card" style="padding: 18px;"><p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 4px;">Students</p><h3>${gradesData.length}</h3></div>
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:24px;">
+    <div class="card" style="padding:18px;"><p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:4px;">Average Grade</p><h3 class="${getGradeClass(grades.average)}">${grades.average}%</h3></div>
+    <div class="card" style="padding:18px;"><p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:4px;">Passing Rate</p><h3 style="color:var(--success);">${grades.passing_rate}%</h3></div>
+    <div class="card" style="padding:18px;"><p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:4px;">Students</p><h3>${grades.students.length}</h3></div>
   </div>`;
   container.innerHTML = html;
 }
 
-// ===== ATTENDANCE PAGE =====
+// ======================== ADMIN: ATTENDANCE OVERVIEW ========================
 
-window.currentRenderFn = 'renderAttendance';
-
-async function loadAttendance() {
-  attendanceData = await API.get('/api/attendance');
+async function initAdminAttendance() {
+  const offerings = await API.get('/api/offerings');
+  const sel = document.getElementById('adminAttOffering');
+  if (sel) sel.innerHTML = '<option value="">Select offering</option>' + offerings.map(o => `<option value="${o.id}">${o.subject_name} - ${o.section}</option>`).join('');
 }
 
-function renderAttendance() {
-  window.currentRenderFn = 'renderAttendance';
-  const container = document.getElementById('attendanceContainer');
+async function loadAdminAttendance() {
+  const sel = document.getElementById('adminAttOffering');
+  const oid = parseInt(sel?.value);
+  if (!oid) { showToast('Please select an offering', 'error'); return; }
+  const container = document.getElementById('adminAttendanceContainer');
   if (!container) return;
-
-  const enriched = attendanceData.map(a => {
-    const presentCount = a.records.filter(r => r === 'Present').length;
-    return { ...a, attPct: (presentCount / days.length) * 100 };
-  });
-  const sorted = sortData(enriched);
-
-  let html = `<div class="table-container"><table><thead><tr>${sortableHeader('Student', 'name')}${days.map(d => `<th>${d}</th>`).join('')}${sortableHeader('Attendance %', 'attPct')}</tr></thead><tbody>`;
-  sorted.forEach(a => {
-    const presentCount = a.records.filter(r => r === 'Present').length;
-    const pct = (presentCount / days.length) * 100;
-    html += `<tr><td><strong>${a.name}</strong></td>${a.records.map((r, i) => `<td><button class="att-toggle ${r.toLowerCase()}" onclick="toggleAttendance(${a.id}, ${i})">${r}</button></td>`).join('')}<td><span class="badge ${pct >= 80 ? 'badge-success' : pct >= 60 ? 'badge-warning' : 'badge-danger'}">${pct.toFixed(0)}%</span></td></tr>`;
+  const data = await API.get(`/api/reports/attendance?offering_id=${oid}`);
+  if (!data.students || !data.students.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>No attendance records found</p></div>';
+    return;
+  }
+  let html = `<p style="margin-bottom:12px;color:var(--text-muted);">Total Sessions: ${data.total_sessions}</p>`;
+  html += `<div class="table-container"><table><thead><tr><th>Student</th><th>Total</th><th>Present</th><th>Absent</th><th>Percentage</th></tr></thead><tbody>`;
+  data.students.forEach(s => {
+    html += `<tr><td><strong>${s.student_name}</strong></td><td>${s.total}</td><td style="color:var(--success);font-weight:600;">${s.present}</td><td style="color:var(--danger);font-weight:600;">${s.absent}</td><td><span class="badge ${s.percentage >= 80 ? 'badge-success' : s.percentage >= 60 ? 'badge-warning' : 'badge-danger'}">${s.percentage}%</span></td></tr>`;
   });
   html += `</tbody></table></div>`;
   container.innerHTML = html;
 }
 
-async function toggleAttendance(studentId, dayIndex) {
-  try {
-    await API.put(`/api/attendance/${studentId}/${dayIndex}`);
-    await loadAttendance();
-    renderAttendance();
-  } catch (err) { showToast(err.message, 'error'); }
-}
+// ======================== ADMIN: ANNOUNCEMENTS ========================
 
-// ===== ANNOUNCEMENTS PAGE =====
+let announcementsData = [];
 
-async function loadAnnouncements() {
-  announcements = await API.get('/api/announcements');
-}
-
-function renderAnnouncements() {
+async function loadAnnouncementsList() {
+  announcementsData = await API.get('/api/announcements');
   const container = document.getElementById('announcementsList');
   if (!container) return;
-  if (!announcements.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📢</div><p>No announcements yet</p></div>`;
+  if (!announcementsData.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📢</div><p>No announcements yet</p></div>';
     return;
   }
-  container.innerHTML = [...announcements].reverse().map(a => `
+  container.innerHTML = [...announcementsData].reverse().map(a => `
     <div class="card announcement-card">
       <div class="annc-header"><span class="annc-title">${a.title}</span><span class="annc-meta">${a.date}</span></div>
       <div class="annc-body">${a.body}</div>
@@ -421,138 +780,512 @@ function renderAnnouncements() {
   `).join('');
 }
 
-async function initAnnouncements() {
-  await loadAnnouncements();
-  renderAnnouncements();
-  const form = document.getElementById('announcementForm');
-  if (form) {
-    form.addEventListener('submit', async function (e) {
-      e.preventDefault();
-      const data = new FormData(this);
-      const title = data.get('title').trim();
-      const body = data.get('body').trim();
-      if (!title || !body) return;
-      const now = new Date();
-      const dateStr = now.toISOString().slice(0, 16).replace('T', ' ');
-      try {
-        await API.post('/api/announcements', { title, body, date: dateStr });
-        await loadAnnouncements();
-        renderAnnouncements();
-        closeModal('addAnnouncementModal');
-        this.reset();
-        showToast('Announcement posted successfully', 'success');
-      } catch (err) { showToast(err.message, 'error'); }
-    });
-  }
-}
-
-// ===== DASHBOARD CHARTS =====
-
-function renderCourseChart() {
-  const counts = {};
-  students.forEach(s => { counts[s.course] = (counts[s.course] || 0) + 1; });
-  const maxCount = Math.max(...Object.values(counts), 1);
-  const colors = ['blue', 'green', 'purple', 'orange', 'yellow'];
-  let i = 0;
-  return Object.entries(counts).map(([course, count]) => {
-    const pct = (count / maxCount) * 100;
-    return `<div class="bar-row"><span class="bar-label">${course}</span><div class="bar-track"><div class="bar-fill ${colors[i++ % colors.length]}" style="width:${pct}%"></div></div><span class="bar-value">${count}</span></div>`;
-  }).join('');
-}
-
-function renderGradeDistChart() {
-  const dist = { A: 0, B: 0, C: 0, D: 0 };
-  subjects.forEach(subj => { gradesData.forEach(g => { const v = g.grades[subj] || 0; if (v >= 90) dist.A++; else if (v >= 75) dist.B++; else if (v >= 60) dist.C++; else dist.D++; }); });
-  const maxVal = Math.max(...Object.values(dist), 1);
-  const items = [
-    { label: 'A (90-100)', count: dist.A, color: 'green' },
-    { label: 'B (75-89)', count: dist.B, color: 'blue' },
-    { label: 'C (60-74)', count: dist.C, color: 'yellow' },
-    { label: 'D (<60)', count: dist.D, color: 'red' }
-  ];
-  return items.map(({ label, count, color }) => `<div class="bar-row"><span class="bar-label">${label}</span><div class="bar-track"><div class="bar-fill ${color}" style="width:${(count/maxVal)*100}%"></div></div><span class="bar-value">${count}</span></div>`).join('');
-}
-
-function renderAttChart() {
-  const dayTotals = days.map((d, i) => {
-    const p = attendanceData.filter(a => a.records[i] === 'Present').length;
-    return { day: d, pct: attendanceData.length ? Math.round((p / attendanceData.length) * 100) : 0 };
+async function initAnnouncementsPage() {
+  await loadAnnouncementsList();
+  document.getElementById('announcementForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const title = fd.get('title').trim();
+    const body = fd.get('body').trim();
+    if (!title || !body) return;
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 16).replace('T', ' ');
+    try {
+      await API.post('/api/announcements', { title, body, date: dateStr });
+      await loadAnnouncementsList();
+      closeModal('addAnnouncementModal');
+      this.reset();
+      showToast('Announcement posted', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
   });
-  return dayTotals.map(({ day, pct }) => `<div class="vert-bar-wrapper"><div class="vert-bar" style="height:${pct}%; background:${pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)'};"></div><span class="vert-bar-label">${day}</span></div>`).join('');
 }
 
-// ===== DASHBOARD PAGE =====
+// ======================== ADMIN: REPORTS ========================
 
-async function renderDashboard() {
-  const container = document.getElementById('dashboardContent');
+async function initReports() {
+  const [enrollmentReport, offerings] = await Promise.all([
+    API.get('/api/reports/enrollment'),
+    API.get('/api/offerings')
+  ]);
+
+  const cardContainer = document.getElementById('enrollmentReportCards');
+  if (cardContainer) {
+    cardContainer.innerHTML = `
+      <div class="card stat-card"><div class="stat-icon blue">📝</div><div class="stat-info"><h3>${enrollmentReport.total}</h3><p>Total Enrollments</p></div></div>
+      <div class="card stat-card"><div class="stat-icon green">✅</div><div class="stat-info"><h3>${enrollmentReport.approved}</h3><p>Approved</p></div></div>
+      <div class="card stat-card"><div class="stat-icon yellow">⏳</div><div class="stat-info"><h3>${enrollmentReport.pending}</h3><p>Pending</p></div></div>
+      <div class="card stat-card"><div class="stat-icon red">❌</div><div class="stat-info"><h3>${enrollmentReport.rejected}</h3><p>Rejected</p></div></div>
+    `;
+  }
+
+  const content = document.getElementById('enrollmentReportContent');
+  if (content) {
+    content.innerHTML = '<h4 style="margin-bottom:8px;">Course Distribution</h4>';
+    if (enrollmentReport.course_distribution && enrollmentReport.course_distribution.length) {
+      const maxCount = Math.max(...enrollmentReport.course_distribution.map(c => c.count), 1);
+      content.innerHTML += enrollmentReport.course_distribution.map(c =>
+        `<div class="bar-row"><span class="bar-label">${c.name}</span><div class="bar-track"><div class="bar-fill blue" style="width:${(c.count/maxCount)*100}%"></div></div><span class="bar-value">${c.count}</span></div>`
+      ).join('');
+    } else {
+      content.innerHTML += '<p style="color:var(--text-muted);">No data available.</p>';
+    }
+  }
+
+  const offeringOpts = () => offerings.map(o => `<option value="${o.id}">${o.subject_name} - ${o.section}</option>`).join('');
+  ['reportOfferingSelect', 'gradeReportOfferingSelect'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Select offering</option>' + offeringOpts();
+  });
+}
+
+async function loadAttendanceReport() {
+  const sel = document.getElementById('reportOfferingSelect');
+  const oid = parseInt(sel?.value);
+  if (!oid) { showToast('Select an offering', 'error'); return; }
+  const data = await API.get(`/api/reports/attendance?offering_id=${oid}`);
+  const container = document.getElementById('attendanceReportContent');
   if (!container) return;
+  if (!data.students || !data.students.length) {
+    container.innerHTML = '<p style="color:var(--text-muted);">No data available.</p>';
+    return;
+  }
+  let html = `<div class="table-container"><table><thead><tr><th>Student</th><th>Total</th><th>Present</th><th>Absent</th><th>%</th></tr></thead><tbody>`;
+  data.students.forEach(s => {
+    html += `<tr><td>${s.student_name}</td><td>${s.total}</td><td style="color:var(--success)">${s.present}</td><td style="color:var(--danger)">${s.absent}</td><td><span class="badge ${s.percentage >= 80 ? 'badge-success' : s.percentage >= 60 ? 'badge-warning' : 'badge-danger'}">${s.percentage}%</span></td></tr>`;
+  });
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
+}
 
+async function loadGradeReport() {
+  const sel = document.getElementById('gradeReportOfferingSelect');
+  const oid = parseInt(sel?.value);
+  if (!oid) { showToast('Select an offering', 'error'); return; }
+  const data = await API.get(`/api/reports/grades?offering_id=${oid}`);
+  const container = document.getElementById('gradeReportContent');
+  if (!container) return;
+  if (!data.students || !data.students.length) {
+    container.innerHTML = '<p style="color:var(--text-muted);">No data available.</p>';
+    return;
+  }
+  let html = `<div class="table-container"><table><thead><tr><th>Student</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Final Grade</th><th>Status</th></tr></thead><tbody>`;
+  data.students.forEach(g => {
+    html += `<tr><td>${g.student_name}</td><td class="${getGradeClass(g.prelim)}">${g.prelim}</td><td class="${getGradeClass(g.midterm)}">${g.midterm}</td><td class="${getGradeClass(g.final)}">${g.final}</td><td><strong class="${getGradeClass(g.final_grade)}">${g.final_grade}</strong></td><td><span class="badge ${g.grade_status === 'Passed' ? 'badge-success' : 'badge-danger'}">${g.grade_status}</span></td></tr>`;
+  });
+  html += `</tbody></table></div>`;
+  html += `<div style="margin-top:16px;"><strong>Average: </strong><span class="${getGradeClass(data.average)}">${data.average}%</span> &nbsp; <strong>Passing Rate: </strong><span style="color:var(--success);">${data.passing_rate}%</span></div>`;
+  container.innerHTML = html;
+}
+
+// ======================== FACULTY: DASHBOARD ========================
+
+async function renderFacultyDashboard() {
+  const container = document.getElementById('facultyDashboardContent');
+  if (!container) return;
+  const stored = JSON.parse(localStorage.getItem('smsUser') || '{}');
   try {
-    [students, gradesData, attendanceData, announcements] = await Promise.all([
-      API.get('/api/students'),
-      API.get('/api/grades'),
-      API.get('/api/attendance'),
-      API.get('/api/announcements'),
-    ]);
-  } catch (err) { showToast(err.message, 'error'); return; }
+    const profile = await API.get('/api/profile');
+    const facultyId = profile.faculty_id;
+    const offerings = await API.get(`/api/offerings/faculty/${facultyId}`);
+    const totalStudents = offerings.reduce((sum, o) => sum + (o.enrolled_count || 0), 0);
+    container.innerHTML = `
+      <div class="stat-cards">
+        <div class="card stat-card"><div class="stat-icon blue">📚</div><div class="stat-info"><h3>${offerings.length}</h3><p>Assigned Classes</p></div></div>
+        <div class="card stat-card"><div class="stat-icon green">👥</div><div class="stat-info"><h3>${totalStudents}</h3><p>Total Students</p></div></div>
+      </div>
+      <div class="card" style="padding:22px;">
+        <h3 style="font-size:1.05rem;margin-bottom:16px;">My Classes</h3>
+        ${offerings.length ? offerings.map(o => `
+          <div style="padding:16px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <div><strong>${o.subject_name}</strong> - ${o.section}</div>
+              <div style="display:flex;gap:8px;">
+                <a href="/faculty/attendance/${o.id}" class="btn btn-sm btn-primary">Attendance</a>
+                <a href="/faculty/grades/${o.id}" class="btn btn-sm btn-success">Grades</a>
+              </div>
+            </div>
+            <p style="color:var(--text-muted);font-size:0.85rem;margin-top:4px;">${o.schedule} | Enrolled: ${o.enrolled_count}</p>
+          </div>
+        `).join('') : '<p style="color:var(--text-muted);">No classes assigned yet.</p>'}
+      </div>
+    `;
+  } catch (err) { showToast(err.message, 'error'); }
+}
 
-  const totalStudents = students.length;
-  const totalSubjects = subjects.length;
-  const allAttRecords = attendanceData.flatMap(a => a.records);
-  const attPct = allAttRecords.length ? ((allAttRecords.filter(r => r === 'Present').length / allAttRecords.length) * 100).toFixed(0) : 0;
-  const recentAnnc = announcements.slice(-3).reverse();
+// ======================== FACULTY: CLASSES ========================
 
-  container.innerHTML = `
-    <div class="stat-cards">
-      <div class="card stat-card"><div class="stat-icon blue">👥</div><div class="stat-info"><h3 id="statStudents">0</h3><p>Total Students</p></div></div>
-      <div class="card stat-card"><div class="stat-icon green">📚</div><div class="stat-info"><h3 id="statSubjects">0</h3><p>Subjects</p></div></div>
-      <div class="card stat-card"><div class="stat-icon yellow">📋</div><div class="stat-info"><h3 id="statAtt">0%</h3><p>Attendance Rate</p></div></div>
-      <div class="card stat-card"><div class="stat-icon purple">📢</div><div class="stat-info"><h3 id="statAnnc">0</h3><p>Announcements</p></div></div>
-    </div>
-    <div class="charts-row">
-      <div class="card chart-card"><h4>Students by Course</h4><div class="bar-chart">${renderCourseChart()}</div></div>
-      <div class="card chart-card"><h4>Grade Distribution</h4><div class="bar-chart">${renderGradeDistChart()}</div></div>
-      <div class="card chart-card"><h4>Weekly Attendance</h4><div class="vert-bar-chart">${renderAttChart()}</div></div>
-      <div class="card chart-card">
-        <h4>Subject Overview</h4>
-        <div style="display:flex;flex-direction:column;gap:12px;justify-content:center;height:calc(100% - 34px);">
-          <div><span style="color:var(--text-muted);font-size:0.85rem;">Subjects offered:</span> <strong style="font-size:1.2rem;">${totalSubjects}</strong></div>
-          <div><span style="color:var(--text-muted);font-size:0.85rem;">Avg grade:</span> <strong class="${getGradeClass(average(gradesData.flatMap(g=>subjects.map(s=>g.grades[s]||0))))}" style="font-size:1.2rem;">${average(gradesData.flatMap(g=>subjects.map(s=>g.grades[s]||0))).toFixed(1)}%</strong></div>
-          <div><span style="color:var(--text-muted);font-size:0.85rem;">Students enrolled:</span> <strong style="font-size:1.2rem;">${totalStudents}</strong></div>
+async function renderFacultyClasses() {
+  const container = document.getElementById('facultyClassesContent');
+  if (!container) return;
+  try {
+    const profile = await API.get('/api/profile');
+    const facultyId = profile.faculty_id;
+    const offerings = await API.get(`/api/offerings/faculty/${facultyId}`);
+    const totalStudents = offerings.reduce((sum, o) => sum + (o.enrolled_count || 0), 0);
+    container.innerHTML = `
+      <div class="stat-cards" style="margin-bottom:20px;">
+        <div class="card stat-card"><div class="stat-icon blue">📚</div><div class="stat-info"><h3>${offerings.length}</h3><p>Assigned Classes</p></div></div>
+        <div class="card stat-card"><div class="stat-icon green">👥</div><div class="stat-info"><h3>${totalStudents}</h3><p>Total Students</p></div></div>
+      </div>
+      ${offerings.length ? offerings.map(o => `
+      <div class="card" style="padding:20px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h3 style="margin-bottom:4px;">${o.subject_name} (${o.subject_code})</h3>
+            <p style="color:var(--text-muted);font-size:0.85rem;">Section: ${o.section} | ${o.schedule} | ${o.semester} ${o.school_year}</p>
+            <p style="color:var(--text-muted);font-size:0.85rem;">Enrolled Students: ${o.enrolled_count}</p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <a href="/faculty/attendance/${o.id}" class="btn btn-primary">📋 Attendance</a>
+            <a href="/faculty/grades/${o.id}" class="btn btn-success">📊 Grades</a>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="card" style="padding: 22px;">
-      <h3 style="font-size: 1.05rem; margin-bottom: 16px;">Recent Announcements</h3>
-      ${recentAnnc.length ? recentAnnc.map(a => `<div style="padding: 12px 0; border-bottom: 1px solid var(--border);"><div style="display: flex; justify-content: space-between; align-items: center;"><strong>${a.title}</strong><span style="font-size: 0.8rem; color: var(--text-muted);">${a.date}</span></div><p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">${a.body.slice(0, 100)}${a.body.length > 100 ? '...' : ''}</p></div>`).join('') : '<p style="color: var(--text-muted);">No announcements yet.</p>'}
-    </div>
-  `;
-
-  animateCounter(document.getElementById('statStudents'), totalStudents);
-  animateCounter(document.getElementById('statSubjects'), totalSubjects);
-  animateCounter(document.getElementById('statAnnc'), announcements.length);
-
-  const attEl = document.getElementById('statAtt');
-  const attTarget = parseInt(attPct);
-  const startTime = performance.now();
-  (function tickAtt(now) {
-    const p = Math.min((now - startTime) / 800, 1);
-    const eased = 1 - Math.pow(1 - p, 3);
-    attEl.textContent = Math.round(eased * attTarget) + '%';
-    if (p < 1) requestAnimationFrame(tickAtt);
-  })(performance.now());
-
-  renderBellDropdown();
+    `).join('') : '<div class="card" style="padding:40px;text-align:center;color:var(--text-muted);"><p>No classes assigned to you yet.</p></div>'}`;
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
-// ===== PROFILE PAGE =====
+// ======================== FACULTY: ATTENDANCE ========================
+
+async function initFacultyAttendance() {
+  const pathParts = window.location.pathname.split('/');
+  const offeringId = parseInt(pathParts[pathParts.length - 1]);
+  if (!offeringId) return;
+  try {
+    const offering = await API.get(`/api/offerings`);
+    const o = offering.find(x => x.id === offeringId);
+    const titleEl = document.getElementById('attClassTitle');
+    if (titleEl && o) titleEl.textContent = `Attendance: ${o.subject_name} - ${o.section}`;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const dateInput = document.getElementById('attDate');
+    if (dateInput) dateInput.value = today;
+
+    window._facultyOfferingId = offeringId;
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function loadAttendanceForDate() {
+  const oid = window._facultyOfferingId;
+  const date = document.getElementById('attDate')?.value;
+  if (!oid || !date) { showToast('Select a date', 'error'); return; }
+  const table = document.getElementById('facultyAttTable');
+  if (!table) return;
+  const data = await API.get(`/api/attendance?offering_id=${oid}`);
+  table.innerHTML = `<thead><tr><th>Student</th><th>Status</th><th>Action</th></tr></thead><tbody>`;
+  if (!data.length) {
+    table.innerHTML += `<tr><td colspan="3"><div class="empty-state"><p>No enrolled students found</p></div></td></tr>`;
+    return;
+  }
+  data.forEach(s => {
+    const existing = (s.records || []).find(r => r.date === date);
+    const status = existing ? existing.status : '';
+    table.innerHTML += `<tr data-student-id="${s.student_id}">
+      <td><strong>${s.student_name}</strong></td>
+      <td><span class="badge ${status === 'Present' ? 'badge-success' : status === 'Absent' ? 'badge-danger' : 'badge-warning'}">${status || 'Not marked'}</span></td>
+      <td>
+        <button class="btn btn-sm btn-success" onclick="markStudentAttendance(${s.student_id}, 'Present')">Present</button>
+        <button class="btn btn-sm btn-danger" onclick="markStudentAttendance(${s.student_id}, 'Absent')">Absent</button>
+      </td>
+    </tr>`;
+  });
+}
+
+async function markStudentAttendance(studentId, status) {
+  const oid = window._facultyOfferingId;
+  const date = document.getElementById('attDate')?.value;
+  if (!oid || !date) return;
+  try {
+    await API.post('/api/attendance/mark', { offering_id: oid, student_id: studentId, date, status });
+    await loadAttendanceForDate();
+    showToast(`Marked ${status}`, 'success');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function markAllPresent() {
+  const table = document.getElementById('facultyAttTable');
+  if (!table) return;
+  const rows = table.querySelectorAll('tbody tr[data-student-id]');
+  if (!rows.length) { showToast('No students loaded', 'error'); return; }
+  const oid = window._facultyOfferingId;
+  const date = document.getElementById('attDate')?.value;
+  if (!oid || !date) { showToast('Select a date first', 'error'); return; }
+  let count = 0;
+  for (const row of rows) {
+    const sid = parseInt(row.dataset.studentId);
+    try {
+      await API.post('/api/attendance/mark', { offering_id: oid, student_id: sid, date, status: 'Present' });
+      count++;
+    } catch {}
+  }
+  showToast(`Marked ${count} student(s) Present`, 'success');
+  await loadAttendanceForDate();
+}
+
+// ======================== FACULTY: GRADES ========================
+
+async function initFacultyGrades() {
+  const pathParts = window.location.pathname.split('/');
+  const offeringId = parseInt(pathParts[pathParts.length - 1]);
+  if (!offeringId) return;
+  try {
+    const offerings = await API.get('/api/offerings');
+    const o = offerings.find(x => x.id === offeringId);
+    const titleEl = document.getElementById('gradeClassTitle');
+    if (titleEl && o) titleEl.textContent = `Grades: ${o.subject_name} - ${o.section}`;
+
+    const grades = await API.get(`/api/grades?offering_id=${offeringId}`);
+    const table = document.getElementById('facultyGradesTable');
+    if (!table) return;
+    table.innerHTML = `<thead><tr><th>Student</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Final Grade</th><th>Status</th><th>Actions</th></tr></thead><tbody>`;
+    if (!grades.length) {
+      table.innerHTML += `<tr><td colspan="7"><div class="empty-state"><p>No students found</p></div></td></tr>`;
+      return;
+    }
+    grades.forEach(g => {
+      const fg = g.final_grade || ((g.prelim + g.midterm + g.final) / 3).toFixed(2);
+      table.innerHTML += `<tr>
+        <td><strong>${g.student_name}</strong></td>
+        <td><input type="number" class="form-control" style="width:80px;" value="${g.prelim}" min="0" max="100" id="prelim_${g.student_id}"></td>
+        <td><input type="number" class="form-control" style="width:80px;" value="${g.midterm}" min="0" max="100" id="midterm_${g.student_id}"></td>
+        <td><input type="number" class="form-control" style="width:80px;" value="${g.final}" min="0" max="100" id="final_${g.student_id}"></td>
+        <td><strong class="${getGradeClass(fg)}">${fg}</strong></td>
+        <td><span class="badge ${g.grade_status === 'Passed' ? 'badge-success' : 'badge-danger'}">${g.grade_status}</span></td>
+        <td><button class="btn btn-sm btn-primary" onclick="saveGrade(${offeringId}, ${g.student_id})">Save</button></td>
+      </tr>`;
+    });
+    table.innerHTML += `</tbody>`;
+    window._facultyGradesOfferingId = offeringId;
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function saveGrade(offeringId, studentId) {
+  const prelim = parseFloat(document.getElementById(`prelim_${studentId}`)?.value || 0);
+  const midterm = parseFloat(document.getElementById(`midterm_${studentId}`)?.value || 0);
+  const final = parseFloat(document.getElementById(`final_${studentId}`)?.value || 0);
+  try {
+    await API.put(`/api/grades/${offeringId}/${studentId}`, { prelim, midterm, final });
+    showToast('Grade saved', 'success');
+    await initFacultyGrades();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== STUDENT: DASHBOARD ========================
+
+async function renderStudentDashboard() {
+  const container = document.getElementById('studentDashboardContent');
+  if (!container) return;
+  try {
+    const stored = JSON.parse(localStorage.getItem('smsUser') || '{}');
+    const profile = await API.get('/api/profile');
+    const sid = profile.student_id;
+    if (!sid) { container.innerHTML = '<p>Student profile not found.</p>'; return; }
+
+    const [grades, attSummary] = await Promise.all([
+      API.get(`/api/grades/student/${sid}`),
+      API.get(`/api/attendance/summary/${sid}`)
+    ]);
+
+    const avgGrade = grades.length ? grades.reduce((s, g) => s + g.final_grade, 0) / grades.length : 0;
+    const passed = grades.filter(g => g.grade_status === 'Passed').length;
+
+    container.innerHTML = `
+      <div class="stat-cards">
+        <div class="card stat-card"><div class="stat-icon blue">📚</div><div class="stat-info"><h3>${grades.length}</h3><p>Subjects</p></div></div>
+        <div class="card stat-card"><div class="stat-icon green">📊</div><div class="stat-info"><h3 class="${getGradeClass(avgGrade)}">${avgGrade.toFixed(1)}%</h3><p>Average Grade</p></div></div>
+        <div class="card stat-card"><div class="stat-icon yellow">✅</div><div class="stat-info"><h3>${passed}/${grades.length}</h3><p>Passed</p></div></div>
+        <div class="card stat-card"><div class="stat-icon purple">📋</div><div class="stat-info"><h3>${attSummary.percentage || 0}%</h3><p>Attendance Rate</p></div></div>
+      </div>
+      <div class="charts-row">
+        <div class="card chart-card">
+          <h4>My Grades</h4>
+          ${grades.length ? `<div class="table-container"><table><thead><tr><th>Subject</th><th>Final Grade</th><th>Status</th></tr></thead><tbody>
+            ${grades.map(g => `<tr><td>${g.subject_name}</td><td><strong class="${getGradeClass(g.final_grade)}">${g.final_grade}</strong></td><td><span class="badge ${g.grade_status === 'Passed' ? 'badge-success' : 'badge-danger'}">${g.grade_status}</span></td></tr>`).join('')}
+          </tbody></table></div>` : '<p style="color:var(--text-muted);">No grades yet.</p>'}
+        </div>
+        <div class="card chart-card">
+          <h4>Attendance Summary</h4>
+          <div style="display:flex;flex-direction:column;gap:12px;justify-content:center;height:calc(100% - 34px);">
+            <div><span style="color:var(--text-muted);font-size:0.85rem;">Present:</span> <strong style="font-size:1.2rem;color:var(--success);">${attSummary.present || 0}</strong></div>
+            <div><span style="color:var(--text-muted);font-size:0.85rem;">Absent:</span> <strong style="font-size:1.2rem;color:var(--danger);">${attSummary.absent || 0}</strong></div>
+            <div><span style="color:var(--text-muted);font-size:0.85rem;">Rate:</span> <strong style="font-size:1.2rem;">${attSummary.percentage || 0}%</strong></div>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== STUDENT: ENROLLMENT ========================
+
+let selectedOfferingIds = [];
+let studentId = null;
+
+async function initStudentEnrollment() {
+  try {
+    const profile = await API.get('/api/profile');
+    studentId = profile.student_id;
+    if (!studentId) { showToast('Student profile not found', 'error'); return; }
+
+    const [offerings, enrollments] = await Promise.all([
+      API.get('/api/offerings'),
+      API.get(`/api/enrollments/student/${studentId}`)
+    ]);
+
+    // Show enrollment history
+    const historyContainer = document.getElementById('enrollmentHistory');
+    if (historyContainer) {
+      if (enrollments.length) {
+        historyContainer.innerHTML = `<div class="table-container"><table><thead><tr><th>Date</th><th>Subjects</th><th>Status</th></tr></thead><tbody>
+          ${enrollments.map(e => `<tr><td>${e.date}</td><td>${(e.items || []).map(i => i.subject_name).join(', ')}</td><td><span class="badge ${e.status === 'Approved' ? 'badge-success' : e.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${e.status}</span></td></tr>`).join('')}
+        </tbody></table></div>`;
+      } else {
+        historyContainer.innerHTML = '<p style="color:var(--text-muted);">No enrollments yet.</p>';
+      }
+    }
+
+    // Show available offerings
+    const container = document.getElementById('availableOfferings');
+    if (!container) return;
+
+    const enrolledOids = new Set();
+    enrollments.filter(e => e.status === 'Approved' || e.status === 'Pending').forEach(e => {
+      (e.items || []).forEach(i => enrolledOids.add(i.offering_id));
+    });
+
+    const available = offerings.filter(o => !enrolledOids.has(o.id));
+
+    if (!available.length) {
+      container.innerHTML = '<p style="color:var(--text-muted);">No available offerings for enrollment.</p>';
+      return;
+    }
+
+    container.innerHTML = available.map(o => `
+      <label class="card" style="padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px;">
+        <input type="checkbox" class="offering-checkbox" value="${o.id}" onchange="toggleOffering(${o.id})">
+        <div>
+          <strong>${o.subject_name}</strong> (${o.subject_code})
+          <p style="color:var(--text-muted);font-size:0.85rem;">${o.section} | ${o.schedule} | ${o.faculty_name}</p>
+        </div>
+      </label>
+    `).join('');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+function toggleOffering(id) {
+  const idx = selectedOfferingIds.indexOf(id);
+  if (idx > -1) selectedOfferingIds.splice(idx, 1);
+  else selectedOfferingIds.push(id);
+  const btn = document.getElementById('submitEnrollmentBtn');
+  if (btn) btn.disabled = selectedOfferingIds.length === 0;
+}
+
+async function submitEnrollment() {
+  if (!studentId || !selectedOfferingIds.length) return;
+  try {
+    await API.post('/api/enrollments', { student_id: studentId, offering_ids: selectedOfferingIds });
+    showToast('Enrollment submitted! Awaiting approval.', 'success');
+    selectedOfferingIds = [];
+    document.getElementById('submitEnrollmentBtn').disabled = true;
+    await initStudentEnrollment();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== STUDENT: GRADES ========================
+
+async function renderStudentGrades() {
+  const container = document.getElementById('studentGradesContent');
+  if (!container) return;
+  try {
+    const profile = await API.get('/api/profile');
+    const sid = profile.student_id;
+    if (!sid) { container.innerHTML = '<p>Student profile not found.</p>'; return; }
+    const grades = await API.get(`/api/grades/student/${sid}`);
+    if (!grades.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><p>No grades available yet.</p></div>';
+      return;
+    }
+    container.innerHTML = `<div class="table-container"><table><thead><tr><th>Subject</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Final Grade</th><th>Status</th></tr></thead><tbody>
+      ${grades.map(g => `<tr><td><strong>${g.subject_name}</strong></td><td class="${getGradeClass(g.prelim)}">${g.prelim}</td><td class="${getGradeClass(g.midterm)}">${g.midterm}</td><td class="${getGradeClass(g.final)}">${g.final}</td><td><strong class="${getGradeClass(g.final_grade)}">${g.final_grade}</strong></td><td><span class="badge ${g.grade_status === 'Passed' ? 'badge-success' : 'badge-danger'}">${g.grade_status}</span></td></tr>`).join('')}
+    </tbody></table></div>`;
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== STUDENT: ATTENDANCE ========================
+
+async function renderStudentAttendance() {
+  const container = document.getElementById('studentAttendanceContent');
+  if (!container) return;
+  try {
+    const profile = await API.get('/api/profile');
+    const sid = profile.student_id;
+    if (!sid) { container.innerHTML = '<p>Student profile not found.</p>'; return; }
+    const summary = await API.get(`/api/attendance/summary/${sid}`);
+    container.innerHTML = `
+      <div class="stat-cards" style="margin-bottom:20px;">
+        <div class="card stat-card"><div class="stat-icon green">✅</div><div class="stat-info"><h3>${summary.present || 0}</h3><p>Present</p></div></div>
+        <div class="card stat-card"><div class="stat-icon red">❌</div><div class="stat-info"><h3>${summary.absent || 0}</h3><p>Absent</p></div></div>
+        <div class="card stat-card"><div class="stat-icon purple">📊</div><div class="stat-info"><h3>${summary.percentage || 0}%</h3><p>Attendance Rate</p></div></div>
+      </div>
+      <div class="card" style="padding:20px;">
+        <h4 style="margin-bottom:12px;">Attendance Breakdown</h4>
+        <div style="height:24px;background:var(--bg);border-radius:6px;overflow:hidden;display:flex;">
+          ${summary.total ? `<div style="width:${summary.percentage}%;background:var(--success);transition:width 0.8s;"></div><div style="width:${100 - summary.percentage}%;background:var(--danger);transition:width 0.8s;"></div>` : '<div style="width:100%;background:var(--bg);"></div>'}
+        </div>
+        <div style="display:flex;gap:20px;margin-top:8px;font-size:0.85rem;">
+          <span><span style="color:var(--success);">●</span> Present: ${summary.present || 0}</span>
+          <span><span style="color:var(--danger);">●</span> Absent: ${summary.absent || 0}</span>
+          <span>Total: ${summary.total || 0}</span>
+        </div>
+      </div>
+    `;
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ======================== PROFILE PAGE ========================
 
 async function loadProfile() {
   userProfile = await API.get('/api/profile');
 }
 
-async function initProfile() {
+function buildProfileSidebar() {
+  const nav = document.getElementById('profileSidebar');
+  if (!nav) return;
+  const role = userProfile.role || userRole;
+  let links = '<div class="nav-section">Main</div>';
+  if (role === 'Admin') {
+    links += `
+      <a href="/admin/dashboard"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="/admin/departments"><span class="nav-icon">🏛️</span> Departments</a>
+      <a href="/admin/courses"><span class="nav-icon">📚</span> Courses</a>
+      <a href="/admin/subjects"><span class="nav-icon">📖</span> Subjects</a>
+      <a href="/admin/faculties"><span class="nav-icon">👨‍🏫</span> Faculties</a>
+      <a href="/admin/offerings"><span class="nav-icon">📅</span> Offerings</a>
+      <a href="/admin/enrollments"><span class="nav-icon">📝</span> Enrollments</a>
+      <a href="/admin/reports"><span class="nav-icon">📈</span> Reports</a>
+      <a href="/admin/students"><span class="nav-icon">👥</span> Students</a>
+      <a href="/admin/grades"><span class="nav-icon">🎯</span> Grades</a>
+      <a href="/admin/attendance"><span class="nav-icon">📋</span> Attendance</a>
+      <a href="/admin/announcements"><span class="nav-icon">📢</span> Announcements</a>`;
+  } else if (role === 'Faculty') {
+    links += `
+      <a href="/faculty/dashboard"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="/faculty/classes"><span class="nav-icon">📚</span> My Classes</a>`;
+  } else {
+    links += `
+      <a href="/student/dashboard"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="/student/enrollment"><span class="nav-icon">📝</span> Enrollment</a>
+      <a href="/student/grades"><span class="nav-icon">🎯</span> My Grades</a>
+      <a href="/student/attendance"><span class="nav-icon">📋</span> Attendance</a>`;
+  }
+  links += `<div class="nav-section">Account</div>
+      <a href="/profile" class="active"><span class="nav-icon">👤</span> Profile</a>`;
+  nav.innerHTML = links;
+}
+
+async function initProfilePage() {
   await loadProfile();
+  buildProfileSidebar();
   renderProfileInfo();
 
   const editForm = document.getElementById('editProfileForm');
@@ -560,15 +1293,14 @@ async function initProfile() {
     document.getElementById('pName').value = userProfile.name;
     document.getElementById('pEmail').value = userProfile.email;
     document.getElementById('pBio').value = userProfile.bio || '';
-
     editForm.addEventListener('submit', async function (e) {
       e.preventDefault();
-      const data = new FormData(this);
+      const fd = new FormData(this);
       try {
-        await API.put('/api/profile', { name: data.get('name'), email: data.get('email'), bio: data.get('bio') });
+        await API.put('/api/profile', { name: fd.get('name'), email: fd.get('email'), bio: fd.get('bio') });
         await loadProfile();
         renderProfileInfo();
-        showToast('Profile updated successfully', 'success');
+        showToast('Profile updated', 'success');
       } catch (err) { showToast(err.message, 'error'); }
     });
   }
@@ -577,18 +1309,14 @@ async function initProfile() {
   if (passForm) {
     passForm.addEventListener('submit', async function (e) {
       e.preventDefault();
-      const data = new FormData(this);
-      const payload = {
-        currentPassword: data.get('currentPassword'),
-        newPassword: data.get('newPassword'),
-        confirmPassword: data.get('confirmPassword')
-      };
-      if (payload.newPassword.length < 6) { showToast('New password must be at least 6 characters', 'error'); return; }
+      const fd = new FormData(this);
+      const payload = { currentPassword: fd.get('currentPassword'), newPassword: fd.get('newPassword'), confirmPassword: fd.get('confirmPassword') };
+      if (payload.newPassword.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
       if (payload.newPassword !== payload.confirmPassword) { showToast('Passwords do not match', 'error'); return; }
       try {
         await API.put('/api/profile/password', payload);
         this.reset();
-        showToast('Password changed successfully', 'success');
+        showToast('Password changed', 'success');
       } catch (err) { showToast(err.message, 'error'); }
     });
   }
@@ -600,35 +1328,18 @@ function renderProfileInfo() {
   const color = getAvatarColor(userProfile.name);
   info.innerHTML = `
     <div class="profile-header card">
-      <div class="profile-avatar" style="background: ${color};">${userProfile.name.charAt(0)}</div>
+      <div class="profile-avatar" style="background:${color};">${userProfile.name.charAt(0)}</div>
       <div class="profile-info">
         <h2>${userProfile.name}</h2>
         <p>${userProfile.role} · ${userProfile.email}</p>
-        <p style="font-size: 0.8rem; margin-top: 4px;">Member since ${userProfile.joinDate}</p>
+        ${userProfile.student_number ? `<p style="font-size:0.85rem;">Student #: ${userProfile.student_number} | ${userProfile.course_name} - Year ${userProfile.year}</p>` : ''}
+        <p style="font-size:0.8rem;margin-top:4px;">Member since ${userProfile.joinDate}</p>
       </div>
     </div>
   `;
 }
 
-// ===== LOGIN PAGE =====
-
-function initLogin() {
-  const form = document.getElementById('loginForm');
-  if (!form) return;
-  form.addEventListener('submit', async function (e) {
-    e.preventDefault();
-    const data = new FormData(this);
-    const errorEl = document.querySelector('.login-error');
-    try {
-      await API.post('/api/login', { username: data.get('username'), password: data.get('password') });
-      window.location.href = '/dashboard';
-    } catch {
-      if (errorEl) { errorEl.textContent = 'Invalid username or password'; errorEl.classList.add('show'); }
-    }
-  });
-}
-
-// ===== INIT =====
+// ======================== INIT DISPATCHER ========================
 
 document.addEventListener('DOMContentLoaded', function () {
   initSidebar();
@@ -638,23 +1349,47 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const page = getPageName();
 
-  // Load announcements for notification bell on every page
   if (page !== 'login') {
-    loadAnnouncements().then(() => renderBellDropdown());
+    loadUserProfile();
+    loadAnnouncements().then(anns => {
+      cachedAnnouncements = anns;
+      const badge = document.querySelector('.bell-badge');
+      if (badge) badge.textContent = anns.length;
+    });
+    document.querySelectorAll('.notification-bell').forEach(bell => {
+      bell.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleBellDropdown(this);
+      });
+    });
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.bell-dropdown.show').forEach(d => d.classList.remove('show'));
+    });
   }
-  initNotificationBell();
 
-  if (page === 'dashboard') {
-    renderDashboard();
-  } else if (page === 'students') {
-    initStudents();
-  } else if (page === 'grades') {
-    loadGrades().then(() => renderGrades());
-  } else if (page === 'attendance') {
-    loadAttendance().then(() => renderAttendance());
-  } else if (page === 'announcements') {
-    initAnnouncements();
-  } else if (page === 'profile') {
-    initProfile();
-  }
+  // Admin pages
+  if (page === 'admin_dashboard') renderAdminDashboard();
+  else if (page === 'admin_departments') initDepartments();
+  else if (page === 'admin_courses') initCourses();
+  else if (page === 'admin_subjects') initSubjects();
+  else if (page === 'admin_faculties') initFaculties();
+  else if (page === 'admin_offerings') initOfferings();
+  else if (page === 'admin_students') initStudentsPage();
+  else if (page === 'admin_enrollments') initEnrollments();
+  else if (page === 'admin_grades') { initAdminGrades(); }
+  else if (page === 'admin_attendance') { initAdminAttendance(); }
+  else if (page === 'admin_announcements') initAnnouncementsPage();
+  else if (page === 'admin_reports') initReports();
+  // Faculty pages
+  else if (page === 'faculty_dashboard') renderFacultyDashboard();
+  else if (page === 'faculty_classes') renderFacultyClasses();
+  else if (page.startsWith('faculty_attendance')) initFacultyAttendance();
+  else if (page.startsWith('faculty_grades')) initFacultyGrades();
+  // Student pages
+  else if (page === 'student_dashboard') renderStudentDashboard();
+  else if (page === 'student_enrollment') initStudentEnrollment();
+  else if (page === 'student_grades') renderStudentGrades();
+  else if (page === 'student_attendance') renderStudentAttendance();
+  // Profile
+  else if (page === 'profile') initProfilePage();
 });

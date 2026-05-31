@@ -16,9 +16,17 @@ def login():
     if user is None or user["password"] != password:
         return jsonify({"error": "Invalid username or password"}), 401
 
+    role = user["role"]
+    redirect = "/admin/dashboard"
+    if role == "Faculty":
+        redirect = "/faculty/dashboard"
+    elif role == "Student":
+        redirect = "/student/dashboard"
+
     return jsonify({
         "username": user["username"],
         "name": user["name"],
         "email": user["email"],
-        "role": user["role"],
+        "role": role,
+        "redirect": redirect,
     })

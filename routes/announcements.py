@@ -15,7 +15,6 @@ def add_announcement():
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
-
     title = data.get("title", "").strip()
     body = data.get("body", "").strip()
     if not title:

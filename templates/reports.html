@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports - Student Management System</title>
+  <script>if(localStorage.getItem('darkMode')==='true'){document.documentElement.classList.add('dark-mode')}</script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-brand"><div class="brand-icon">🎓</div><span>SMS Admin</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Academic Setup</div>
+      <a href="/admin/dashboard"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="/admin/departments"><span class="nav-icon">🏛️</span> Departments</a>
+      <a href="/admin/courses"><span class="nav-icon">📚</span> Courses</a>
+      <a href="/admin/subjects"><span class="nav-icon">📖</span> Subjects</a>
+      <a href="/admin/faculties"><span class="nav-icon">👨‍🏫</span> Faculties</a>
+      <a href="/admin/offerings"><span class="nav-icon">📅</span> Class Offerings</a>
+      <div class="nav-section">Management</div>
+      <a href="/admin/students"><span class="nav-icon">👥</span> Students</a>
+      <a href="/admin/enrollments"><span class="nav-icon">📝</span> Enrollments</a>
+      <a href="/admin/grades"><span class="nav-icon">📊</span> Grades</a>
+      <a href="/admin/attendance"><span class="nav-icon">📋</span> Attendance</a>
+      <a href="/admin/announcements"><span class="nav-icon">📢</span> Announcements</a>
+      <a href="/admin/reports" class="active"><span class="nav-icon">📈</span> Reports</a>
+      <div class="nav-section">Account</div>
+      <a href="/profile"><span class="nav-icon">👤</span> Profile</a>
+    </nav>
+    <div class="sidebar-footer"><a href="/login">🚪 Logout</a></div>
+  </aside>
+  <header class="topbar">
+    <div class="topbar-left"><button class="hamburger">☰</button><span class="topbar-title">Reports</span></div>
+    <div class="topbar-right">
+      <span class="user-name">Admin User</span>
+      <button class="dark-mode-toggle btn btn-ghost btn-icon" style="font-size:1.1rem;">🌙</button>
+      <div class="notification-bell"><span class="bell-icon">🔔</span><span class="bell-badge">0</span><div class="bell-dropdown"></div></div>
+      <div class="user-avatar" data-name="Admin User">A</div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="breadcrumb"><a href="/admin/dashboard">Dashboard</a><span class="sep">/</span>Reports</div>
+    <div class="page-header"><h1>Reports</h1></div>
+
+    <div class="stat-cards" id="enrollmentReportCards"></div>
+
+    <div class="card" style="padding:20px;margin-bottom:20px;">
+      <h3 style="margin-bottom:16px;">Enrollment Report</h3>
+      <div id="enrollmentReportContent"></div>
+    </div>
+
+    <div class="card" style="padding:20px;margin-bottom:20px;">
+      <h3 style="margin-bottom:16px;">Attendance Report</h3>
+      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:end;">
+        <div class="form-group" style="margin:0;flex:1;">
+          <label>Select Offering</label>
+          <select id="reportOfferingSelect" class="form-control"></select>
+        </div>
+        <button class="btn btn-primary" onclick="loadAttendanceReport()">Generate</button>
+      </div>
+      <div id="attendanceReportContent"></div>
+    </div>
+
+    <div class="card" style="padding:20px;">
+      <h3 style="margin-bottom:16px;">Grade Report</h3>
+      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:end;">
+        <div class="form-group" style="margin:0;flex:1;">
+          <label>Select Offering</label>
+          <select id="gradeReportOfferingSelect" class="form-control"></select>
+        </div>
+        <button class="btn btn-primary" onclick="loadGradeReport()">Generate</button>
+      </div>
+      <div id="gradeReportContent"></div>
+    </div>
+
+  </main>
+
+  <div id="toastContainer" class="toast-container"></div>
+  <script src="/static/js/script.js"></script>
+</body>
+</html>

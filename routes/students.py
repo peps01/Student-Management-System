@@ -17,9 +17,10 @@ def add_student():
         return jsonify({"error": "Invalid JSON"}), 400
 
     errors = []
+    if not data.get("student_number"): errors.append("Student number is required")
     if not data.get("name"): errors.append("Name is required")
     if not data.get("email"): errors.append("Email is required")
-    if not data.get("course"): errors.append("Course is required")
+    if not data.get("course_id"): errors.append("Course is required")
     year = data.get("year")
     if not year or not isinstance(year, int) or year < 1 or year > 5:
         errors.append("Year must be between 1 and 5")
@@ -37,7 +38,6 @@ def update_student(student_id):
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
-
     year = data.get("year")
     if year and (not isinstance(year, int) or year < 1 or year > 5):
         return jsonify({"error": "Year must be between 1 and 5"}), 400

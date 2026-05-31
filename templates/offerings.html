@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Class Offerings - Student Management System</title>
+  <script>if(localStorage.getItem('darkMode')==='true'){document.documentElement.classList.add('dark-mode')}</script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-brand"><div class="brand-icon">🎓</div><span>SMS Admin</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Academic Setup</div>
+      <a href="/admin/dashboard"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="/admin/departments"><span class="nav-icon">🏛️</span> Departments</a>
+      <a href="/admin/courses"><span class="nav-icon">📚</span> Courses</a>
+      <a href="/admin/subjects"><span class="nav-icon">📖</span> Subjects</a>
+      <a href="/admin/faculties"><span class="nav-icon">👨‍🏫</span> Faculties</a>
+      <a href="/admin/offerings" class="active"><span class="nav-icon">📅</span> Class Offerings</a>
+      <div class="nav-section">Management</div>
+      <a href="/admin/students"><span class="nav-icon">👥</span> Students</a>
+      <a href="/admin/enrollments"><span class="nav-icon">📝</span> Enrollments</a>
+      <a href="/admin/grades"><span class="nav-icon">📊</span> Grades</a>
+      <a href="/admin/attendance"><span class="nav-icon">📋</span> Attendance</a>
+      <a href="/admin/announcements"><span class="nav-icon">📢</span> Announcements</a>
+      <a href="/admin/reports"><span class="nav-icon">📈</span> Reports</a>
+      <div class="nav-section">Account</div>
+      <a href="/profile"><span class="nav-icon">👤</span> Profile</a>
+    </nav>
+    <div class="sidebar-footer"><a href="/login">🚪 Logout</a></div>
+  </aside>
+  <header class="topbar">
+    <div class="topbar-left"><button class="hamburger">☰</button><span class="topbar-title">Class Offerings</span></div>
+    <div class="topbar-right">
+      <span class="user-name">Admin User</span>
+      <button class="dark-mode-toggle btn btn-ghost btn-icon" style="font-size:1.1rem;">🌙</button>
+      <div class="notification-bell"><span class="bell-icon">🔔</span><span class="bell-badge">0</span><div class="bell-dropdown"></div></div>
+      <div class="user-avatar" data-name="Admin User">A</div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="breadcrumb"><a href="/admin/dashboard">Dashboard</a><span class="sep">/</span>Class Offerings</div>
+    <div class="page-header"><h1>Class Offerings</h1><button class="btn btn-primary" onclick="openModal('addOfferingModal')">+ Create Offering</button></div>
+    <div class="card" style="padding:4px;">
+      <div class="table-container"><table id="offeringsTable"></table></div>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="addOfferingModal">
+    <div class="modal">
+      <div class="modal-header"><h2>Create Class Offering</h2><button class="close-btn" onclick="closeModal('addOfferingModal')">&times;</button></div>
+      <form id="addOfferingForm">
+        <div class="modal-body">
+          <div class="form-group"><label>Subject</label><select id="addOffSubject" name="subject_id" class="form-control" required></select></div>
+          <div class="form-group"><label>Section</label><input type="text" id="addOffSection" name="section" class="form-control" placeholder="e.g. BSIT-1A" required></div>
+          <div class="form-group"><label>Schedule</label><input type="text" id="addOffSchedule" name="schedule" class="form-control" placeholder="e.g. Mon-Wed 8:00-10:00 AM" required></div>
+          <div class="form-group"><label>Faculty</label><select id="addOffFaculty" name="faculty_id" class="form-control" required></select></div>
+          <div class="form-group"><label>Semester</label><select id="addOffSemester" name="semester" class="form-control" required>
+            <option value="1st Semester">1st Semester</option>
+            <option value="2nd Semester">2nd Semester</option>
+            <option value="Summer">Summer</option>
+          </select></div>
+          <div class="form-group"><label>School Year</label><input type="text" id="addOffSchoolYear" name="school_year" class="form-control" placeholder="e.g. 2025-2026" required></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('addOfferingModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Offering</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="editOfferingModal">
+    <div class="modal">
+      <div class="modal-header"><h2>Edit Offering</h2><button class="close-btn" onclick="closeModal('editOfferingModal')">&times;</button></div>
+      <form id="editOfferingForm">
+        <div class="modal-body">
+          <input type="hidden" id="editOffId" name="id">
+          <div class="form-group"><label>Subject</label><select id="editOffSubject" name="subject_id" class="form-control" required></select></div>
+          <div class="form-group"><label>Section</label><input type="text" id="editOffSection" name="section" class="form-control" required></div>
+          <div class="form-group"><label>Schedule</label><input type="text" id="editOffSchedule" name="schedule" class="form-control" required></div>
+          <div class="form-group"><label>Faculty</label><select id="editOffFaculty" name="faculty_id" class="form-control" required></select></div>
+          <div class="form-group"><label>Semester</label><select id="editOffSemester" name="semester" class="form-control" required>
+            <option value="1st Semester">1st Semester</option>
+            <option value="2nd Semester">2nd Semester</option>
+            <option value="Summer">Summer</option>
+          </select></div>
+          <div class="form-group"><label>School Year</label><input type="text" id="editOffSchoolYear" name="school_year" class="form-control" required></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('editOfferingModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+  <script src="/static/js/script.js"></script>
+</body>
+</html>
