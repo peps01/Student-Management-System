@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_auth, require_role
 
 enrollments_bp = Blueprint("enrollments", __name__)
 
 
 @enrollments_bp.route("/api/enrollments", methods=["GET"])
+@require_role("Administrator")
 def list_enrollments():
     status = request.args.get("status")
     repo = current_app.config["repository"]
@@ -11,6 +13,7 @@ def list_enrollments():
 
 
 @enrollments_bp.route("/api/enrollments", methods=["POST"])
+@require_auth
 def create_enrollment():
     data = request.get_json(silent=True)
     if not data:
@@ -27,6 +30,7 @@ def create_enrollment():
 
 
 @enrollments_bp.route("/api/enrollments/<int:enrollment_id>/approve", methods=["PUT"])
+@require_role("Administrator")
 def approve_enrollment(enrollment_id):
     repo = current_app.config["repository"]
     if repo.approve_enrollment(enrollment_id):
@@ -35,6 +39,7 @@ def approve_enrollment(enrollment_id):
 
 
 @enrollments_bp.route("/api/enrollments/<int:enrollment_id>/reject", methods=["PUT"])
+@require_role("Administrator")
 def reject_enrollment(enrollment_id):
     repo = current_app.config["repository"]
     if repo.reject_enrollment(enrollment_id):
@@ -43,6 +48,7 @@ def reject_enrollment(enrollment_id):
 
 
 @enrollments_bp.route("/api/enrollments/student/<int:student_id>", methods=["GET"])
+@require_auth
 def student_enrollments(student_id):
     repo = current_app.config["repository"]
     return jsonify(repo.get_student_enrollments(student_id))

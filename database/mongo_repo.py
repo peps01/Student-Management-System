@@ -1,7 +1,8 @@
 import random
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 from pymongo import MongoClient
+from werkzeug.security import generate_password_hash, check_password_hash
 from .interface import Repository
 
 
@@ -83,7 +84,7 @@ class MongoRepository(Repository):
         for uname, name, email, pwd, bio, role in users_data:
             self.db.users.insert_one({
                 "_id": uname, "name": name, "email": email,
-                "password": pwd, "bio": bio, "role": role,
+                "password": generate_password_hash(pwd), "bio": bio, "role": role,
                 "join_date": str(date.today())
             })
 
@@ -232,17 +233,17 @@ class MongoRepository(Repository):
 
     def change_password(self, username: str, current: str, new: str) -> bool:
         user = self.db.users.find_one({"_id": username})
-        if user is None or user.get("password") != current:
+        if user is None or not check_password_hash(user.get("password", ""), current):
             return False
         self.db.users.update_one(
-            {"_id": username}, {"$set": {"password": new}}
+            {"_id": username}, {"$set": {"password": generate_password_hash(new)}}
         )
         return True
 
     def create_user(self, username: str, name: str, email: str, password: str, role: str) -> dict:
         self.db.users.insert_one({
             "_id": username, "name": name, "email": email,
-            "password": password, "role": role, "bio": "",
+            "password": generate_password_hash(password), "role": role, "bio": "",
             "join_date": str(date.today())
         })
         return {"username": username, "name": name, "email": email, "role": role}
@@ -588,11 +589,13 @@ class MongoRepository(Repository):
         items = []
         for oid in offering_ids:
             offering = self.db.class_offerings.find_one({"_id": oid})
-            subject = self.db.subjects.find_one({"_id": offering["subject_id"]})
+            if offering is None:
+                continue
+            subject = self.db.subjects.find_one({"_id": offering.get("subject_id")})
             items.append({
                 "offering_id": oid,
-                "subject_name": subject["name"],
-                "subject_code": subject["code"],
+                "subject_name": subject["name"] if subject else "Unknown",
+                "subject_code": subject["code"] if subject else "",
             })
         self.db.enrollments.insert_one({
             "_id": eid, "student_id": student_id, "status": "Pending",

@@ -1,15 +1,18 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_auth, require_role
 
 departments_bp = Blueprint("departments", __name__)
 
 
 @departments_bp.route("/api/departments", methods=["GET"])
+@require_auth
 def list_departments():
     repo = current_app.config["repository"]
     return jsonify(repo.list_departments())
 
 
 @departments_bp.route("/api/departments", methods=["POST"])
+@require_role("Administrator")
 def add_department():
     data = request.get_json(silent=True)
     if not data:
@@ -22,6 +25,7 @@ def add_department():
 
 
 @departments_bp.route("/api/departments/<int:dept_id>", methods=["PUT"])
+@require_role("Administrator")
 def update_department(dept_id):
     data = request.get_json(silent=True)
     if not data or not data.get("name") or not data.get("code"):
@@ -33,6 +37,7 @@ def update_department(dept_id):
 
 
 @departments_bp.route("/api/departments/<int:dept_id>", methods=["DELETE"])
+@require_role("Administrator")
 def delete_department(dept_id):
     repo = current_app.config["repository"]
     if repo.delete_department(dept_id):

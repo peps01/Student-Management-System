@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_auth, require_role
 
 announcements_bp = Blueprint("announcements", __name__)
 
 
 @announcements_bp.route("/api/announcements", methods=["GET"])
+@require_auth
 def list_announcements():
     repo = current_app.config["repository"]
     announcements = repo.list_announcements()
@@ -11,6 +13,7 @@ def list_announcements():
 
 
 @announcements_bp.route("/api/announcements", methods=["POST"])
+@require_role("Administrator")
 def add_announcement():
     data = request.get_json(silent=True)
     if not data:

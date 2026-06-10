@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_role, require_auth
 
 attendance_bp = Blueprint("attendance", __name__)
 
 
 @attendance_bp.route("/api/attendance", methods=["GET"])
+@require_role("Administrator", "Faculty")
 def list_attendance():
     offering_id = request.args.get("offering_id", type=int)
     if not offering_id:
@@ -14,6 +16,7 @@ def list_attendance():
 
 
 @attendance_bp.route("/api/attendance/mark", methods=["POST"])
+@require_role("Administrator", "Faculty")
 def mark_attendance():
     data = request.get_json(silent=True)
     if not data:
@@ -30,6 +33,7 @@ def mark_attendance():
 
 
 @attendance_bp.route("/api/attendance/summary/<int:student_id>", methods=["GET"])
+@require_auth
 def attendance_summary(student_id):
     repo = current_app.config["repository"]
     summary = repo.get_student_attendance_summary(student_id)

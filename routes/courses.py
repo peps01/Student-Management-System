@@ -1,15 +1,18 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_auth, require_role
 
 courses_bp = Blueprint("courses", __name__)
 
 
 @courses_bp.route("/api/courses", methods=["GET"])
+@require_auth
 def list_courses():
     repo = current_app.config["repository"]
     return jsonify(repo.list_courses())
 
 
 @courses_bp.route("/api/courses", methods=["POST"])
+@require_role("Administrator")
 def add_course():
     data = request.get_json(silent=True)
     if not data:
@@ -22,6 +25,7 @@ def add_course():
 
 
 @courses_bp.route("/api/courses/<int:course_id>", methods=["PUT"])
+@require_role("Administrator")
 def update_course(course_id):
     data = request.get_json(silent=True)
     if not data:
@@ -33,6 +37,7 @@ def update_course(course_id):
 
 
 @courses_bp.route("/api/courses/<int:course_id>", methods=["DELETE"])
+@require_role("Administrator")
 def delete_course(course_id):
     repo = current_app.config["repository"]
     if repo.delete_course(course_id):

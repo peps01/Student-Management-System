@@ -1,15 +1,18 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_auth, require_role
 
 subjects_bp = Blueprint("subjects", __name__)
 
 
 @subjects_bp.route("/api/subjects", methods=["GET"])
+@require_auth
 def list_subjects():
     repo = current_app.config["repository"]
     return jsonify(repo.list_subjects())
 
 
 @subjects_bp.route("/api/subjects", methods=["POST"])
+@require_role("Administrator")
 def add_subject():
     data = request.get_json(silent=True)
     if not data:
@@ -22,6 +25,7 @@ def add_subject():
 
 
 @subjects_bp.route("/api/subjects/<int:subject_id>", methods=["PUT"])
+@require_role("Administrator")
 def update_subject(subject_id):
     data = request.get_json(silent=True)
     if not data:
@@ -33,6 +37,7 @@ def update_subject(subject_id):
 
 
 @subjects_bp.route("/api/subjects/<int:subject_id>", methods=["DELETE"])
+@require_role("Administrator")
 def delete_subject(subject_id):
     repo = current_app.config["repository"]
     if repo.delete_subject(subject_id):

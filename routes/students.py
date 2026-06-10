@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_role
 
 students_bp = Blueprint("students", __name__)
 
 
 @students_bp.route("/api/students", methods=["GET"])
+@require_role("Administrator")
 def list_students():
     repo = current_app.config["repository"]
     students = repo.list_students()
@@ -11,6 +13,7 @@ def list_students():
 
 
 @students_bp.route("/api/students", methods=["POST"])
+@require_role("Administrator")
 def add_student():
     data = request.get_json(silent=True)
     if not data:
@@ -34,6 +37,7 @@ def add_student():
 
 
 @students_bp.route("/api/students/<int:student_id>", methods=["PUT"])
+@require_role("Administrator")
 def update_student(student_id):
     data = request.get_json(silent=True)
     if not data:
@@ -50,6 +54,7 @@ def update_student(student_id):
 
 
 @students_bp.route("/api/students/<int:student_id>", methods=["DELETE"])
+@require_role("Administrator")
 def delete_student(student_id):
     repo = current_app.config["repository"]
     if repo.delete_student(student_id):

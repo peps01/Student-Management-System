@@ -6,7 +6,7 @@ function getAuthHeaders() {
   const stored = localStorage.getItem('smsUser');
   if (!stored) return {};
   const u = JSON.parse(stored);
-  return { 'X-Username': u.username };
+  return { 'Authorization': 'Bearer ' + (u.token || '') };
 }
 
 const API = {
@@ -121,10 +121,10 @@ function initLogin() {
 
 async function loadUserProfile() {
   const stored = localStorage.getItem('smsUser');
-  if (!stored) { window.location.href = '/login'; return; }
+  if (!stored || !JSON.parse(stored).token) { window.location.href = '/login'; return; }
   const u = JSON.parse(stored);
   try {
-    userProfile = await API.get('/api/profile', { headers: { 'X-Username': u.username } });
+    userProfile = await API.get('/api/profile');
   } catch {
     userProfile = u;
   }
@@ -137,6 +137,22 @@ async function loadUserProfile() {
     el.style.background = getAvatarColor(n);
   });
 }
+
+async function logout() {
+  try {
+    await API.post('/api/logout');
+  } catch {}
+  localStorage.removeItem('smsUser');
+  window.location.href = '/login';
+}
+
+document.addEventListener('click', function (e) {
+  const logoutLink = e.target.closest('.sidebar-footer a');
+  if (logoutLink) {
+    e.preventDefault();
+    logout();
+  }
+});
 
 async function loadAnnouncements() {
   return API.get('/api/announcements');
@@ -1252,34 +1268,46 @@ function buildProfileSidebar() {
   const nav = document.getElementById('profileSidebar');
   if (!nav) return;
   const role = userProfile.role || userRole;
-  let links = '<div class="nav-section">Main</div>';
-  if (role === 'Admin') {
-    links += `
+  let brand = 'SMS';
+  if (role === 'Administrator') { brand = 'SMS Admin'; }
+  else if (role === 'Faculty')  { brand = 'SMS Faculty'; }
+  else                          { brand = 'SMS Student'; }
+  const brandEl = document.querySelector('.sidebar-brand span');
+  if (brandEl) brandEl.textContent = brand;
+
+  let links = '';
+  if (role === 'Administrator') {
+    links = `<div class="nav-section">Academic Setup</div>
       <a href="/admin/dashboard"><span class="nav-icon">📊</span> Dashboard</a>
       <a href="/admin/departments"><span class="nav-icon">🏛️</span> Departments</a>
       <a href="/admin/courses"><span class="nav-icon">📚</span> Courses</a>
       <a href="/admin/subjects"><span class="nav-icon">📖</span> Subjects</a>
       <a href="/admin/faculties"><span class="nav-icon">👨‍🏫</span> Faculties</a>
-      <a href="/admin/offerings"><span class="nav-icon">📅</span> Offerings</a>
-      <a href="/admin/enrollments"><span class="nav-icon">📝</span> Enrollments</a>
-      <a href="/admin/reports"><span class="nav-icon">📈</span> Reports</a>
+      <a href="/admin/offerings"><span class="nav-icon">📅</span> Class Offerings</a>
+      <div class="nav-section">Management</div>
       <a href="/admin/students"><span class="nav-icon">👥</span> Students</a>
-      <a href="/admin/grades"><span class="nav-icon">🎯</span> Grades</a>
+      <a href="/admin/enrollments"><span class="nav-icon">📝</span> Enrollments</a>
+      <a href="/admin/grades"><span class="nav-icon">📊</span> Grades</a>
       <a href="/admin/attendance"><span class="nav-icon">📋</span> Attendance</a>
-      <a href="/admin/announcements"><span class="nav-icon">📢</span> Announcements</a>`;
+      <a href="/admin/announcements"><span class="nav-icon">📢</span> Announcements</a>
+      <a href="/admin/reports"><span class="nav-icon">📈</span> Reports</a>
+      <div class="nav-section">Account</div>
+      <a href="/profile" class="active"><span class="nav-icon">👤</span> Profile</a>`;
   } else if (role === 'Faculty') {
-    links += `
+    links = `<div class="nav-section">Main</div>
       <a href="/faculty/dashboard"><span class="nav-icon">📊</span> Dashboard</a>
-      <a href="/faculty/classes"><span class="nav-icon">📚</span> My Classes</a>`;
+      <a href="/faculty/classes"><span class="nav-icon">📚</span> My Classes</a>
+      <div class="nav-section">Account</div>
+      <a href="/profile" class="active"><span class="nav-icon">👤</span> Profile</a>`;
   } else {
-    links += `
+    links = `<div class="nav-section">Main</div>
       <a href="/student/dashboard"><span class="nav-icon">📊</span> Dashboard</a>
       <a href="/student/enrollment"><span class="nav-icon">📝</span> Enrollment</a>
-      <a href="/student/grades"><span class="nav-icon">🎯</span> My Grades</a>
-      <a href="/student/attendance"><span class="nav-icon">📋</span> Attendance</a>`;
-  }
-  links += `<div class="nav-section">Account</div>
+      <a href="/student/grades"><span class="nav-icon">📊</span> My Grades</a>
+      <a href="/student/attendance"><span class="nav-icon">📋</span> Attendance</a>
+      <div class="nav-section">Account</div>
       <a href="/profile" class="active"><span class="nav-icon">👤</span> Profile</a>`;
+  }
   nav.innerHTML = links;
 }
 

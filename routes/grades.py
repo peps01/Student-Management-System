@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_role, require_auth
 
 grades_bp = Blueprint("grades", __name__)
 
 
 @grades_bp.route("/api/grades", methods=["GET"])
+@require_role("Administrator", "Faculty")
 def list_grades():
     offering_id = request.args.get("offering_id", type=int)
     repo = current_app.config["repository"]
@@ -15,6 +17,7 @@ def list_grades():
 
 
 @grades_bp.route("/api/grades/<int:offering_id>/<int:student_id>", methods=["PUT"])
+@require_role("Administrator", "Faculty")
 def upsert_grade(offering_id, student_id):
     data = request.get_json(silent=True)
     if not data:
@@ -29,6 +32,7 @@ def upsert_grade(offering_id, student_id):
 
 
 @grades_bp.route("/api/grades/student/<int:student_id>", methods=["GET"])
+@require_auth
 def get_student_grades(student_id):
     repo = current_app.config["repository"]
     grades = repo.get_student_grades(student_id)

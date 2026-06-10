@@ -1,16 +1,13 @@
-from flask import Blueprint, request, jsonify, current_app, session
+from flask import Blueprint, request, jsonify, current_app, g
+from routes.auth import require_auth
 
 profile_bp = Blueprint("profile", __name__)
 
 
-def _get_username(req):
-    auth = req.headers.get("X-Username", "")
-    return auth or "admin"
-
-
 @profile_bp.route("/api/profile", methods=["GET"])
+@require_auth
 def get_profile():
-    username = _get_username(request)
+    username = g.username
     repo = current_app.config["repository"]
     user = repo.get_user(username)
     if user is None:
@@ -39,8 +36,9 @@ def get_profile():
 
 
 @profile_bp.route("/api/profile", methods=["PUT"])
+@require_auth
 def update_profile():
-    username = _get_username(request)
+    username = g.username
     data = request.get_json(silent=True)
     if not data or not data.get("name") or not data.get("email"):
         return jsonify({"error": "Name and email are required"}), 400
@@ -52,8 +50,9 @@ def update_profile():
 
 
 @profile_bp.route("/api/profile/password", methods=["PUT"])
+@require_auth
 def change_password():
-    username = _get_username(request)
+    username = g.username
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400

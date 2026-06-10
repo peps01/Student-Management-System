@@ -1,15 +1,18 @@
 from flask import Blueprint, request, jsonify, current_app
+from routes.auth import require_auth, require_role
 
 offerings_bp = Blueprint("offerings", __name__)
 
 
 @offerings_bp.route("/api/offerings", methods=["GET"])
+@require_auth
 def list_offerings():
     repo = current_app.config["repository"]
     return jsonify(repo.list_offerings())
 
 
 @offerings_bp.route("/api/offerings", methods=["POST"])
+@require_role("Administrator")
 def add_offering():
     data = request.get_json(silent=True)
     if not data:
@@ -24,6 +27,7 @@ def add_offering():
 
 
 @offerings_bp.route("/api/offerings/<int:offering_id>", methods=["PUT"])
+@require_role("Administrator")
 def update_offering(offering_id):
     data = request.get_json(silent=True)
     if not data:
@@ -35,6 +39,7 @@ def update_offering(offering_id):
 
 
 @offerings_bp.route("/api/offerings/<int:offering_id>", methods=["DELETE"])
+@require_role("Administrator")
 def delete_offering(offering_id):
     repo = current_app.config["repository"]
     if repo.delete_offering(offering_id):
@@ -43,6 +48,7 @@ def delete_offering(offering_id):
 
 
 @offerings_bp.route("/api/offerings/faculty/<int:faculty_id>", methods=["GET"])
+@require_auth
 def faculty_offerings(faculty_id):
     repo = current_app.config["repository"]
     return jsonify(repo.get_faculty_offerings(faculty_id))
