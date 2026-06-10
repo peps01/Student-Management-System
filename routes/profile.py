@@ -18,7 +18,7 @@ def get_profile():
         s = repo.get_student_by_username(username)
         if s:
             extra = {"student_id": s["id"], "student_number": s["student_number"],
-                     "course_name": s["course_name"], "year": s["year"]}
+                     "course_id": s["course_id"], "course_name": s["course_name"], "year": s["year"]}
     elif user["role"] == "Faculty":
         f = repo.get_faculty_by_username(username)
         if f:

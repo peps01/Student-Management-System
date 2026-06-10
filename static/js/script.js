@@ -898,10 +898,11 @@ async function loadGradeReport() {
 async function renderFacultyDashboard() {
   const container = document.getElementById('facultyDashboardContent');
   if (!container) return;
-  const stored = JSON.parse(localStorage.getItem('smsUser') || '{}');
   try {
+    const stored = JSON.parse(localStorage.getItem('smsUser') || '{}');
     const profile = await API.get('/api/profile');
-    const facultyId = profile.faculty_id;
+    const facultyId = profile.faculty_id || stored.faculty_id;
+    if (!facultyId) { container.innerHTML = '<div class="card" style="padding:40px;text-align:center;"><p style="color:var(--text-muted);">Faculty profile not found. Please contact the administrator.</p></div>'; return; }
     const offerings = await API.get(`/api/offerings/faculty/${facultyId}`);
     const totalStudents = offerings.reduce((sum, o) => sum + (o.enrolled_count || 0), 0);
     container.innerHTML = `
@@ -925,7 +926,7 @@ async function renderFacultyDashboard() {
         `).join('') : '<p style="color:var(--text-muted);">No classes assigned yet.</p>'}
       </div>
     `;
-  } catch (err) { showToast(err.message, 'error'); }
+  } catch (err) { container.innerHTML = `<div class="card" style="padding:40px;text-align:center;"><p style="color:var(--text-muted);">Error loading data: ${err.message}</p></div>`; }
 }
 
 // ======================== FACULTY: CLASSES ========================
@@ -934,30 +935,68 @@ async function renderFacultyClasses() {
   const container = document.getElementById('facultyClassesContent');
   if (!container) return;
   try {
+    const stored = JSON.parse(localStorage.getItem('smsUser') || '{}');
     const profile = await API.get('/api/profile');
-    const facultyId = profile.faculty_id;
+    const facultyId = profile.faculty_id || stored.faculty_id;
+    if (!facultyId) { container.innerHTML = '<div class="card" style="padding:40px;text-align:center;"><p style="color:var(--text-muted);">Faculty profile not found. Please contact the administrator.</p></div>'; return; }
     const offerings = await API.get(`/api/offerings/faculty/${facultyId}`);
-    const totalStudents = offerings.reduce((sum, o) => sum + (o.enrolled_count || 0), 0);
-    container.innerHTML = `
-      <div class="stat-cards" style="margin-bottom:20px;">
-        <div class="card stat-card"><div class="stat-icon blue">📚</div><div class="stat-info"><h3>${offerings.length}</h3><p>Assigned Classes</p></div></div>
-        <div class="card stat-card"><div class="stat-icon green">👥</div><div class="stat-info"><h3>${totalStudents}</h3><p>Total Students</p></div></div>
-      </div>
-      ${offerings.length ? offerings.map(o => `
-      <div class="card" style="padding:20px;margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-          <div>
-            <h3 style="margin-bottom:4px;">${o.subject_name} (${o.subject_code})</h3>
-            <p style="color:var(--text-muted);font-size:0.85rem;">Section: ${o.section} | ${o.schedule} | ${o.semester} ${o.school_year}</p>
-            <p style="color:var(--text-muted);font-size:0.85rem;">Enrolled Students: ${o.enrolled_count}</p>
+    let html = `<p style="margin-bottom:16px;color:var(--text-muted);">You have <strong>${offerings.length}</strong> assigned class${offerings.length !== 1 ? 'es' : ''} this semester.</p>`;
+    html += `<div style="margin-bottom:20px;"><input type="text" id="classSearchInput" class="form-control" placeholder="Search by subject, code, section, or schedule..." style="max-width:450px;" oninput="filterFacultyClasses()"></div>`;
+    html += `<div id="facultyClassCards">`;
+    if (offerings.length) {
+      offerings.forEach(o => {
+        html += `<div class="card" style="padding:20px;margin-bottom:16px;" data-search="${o.subject_name} ${o.subject_code} ${o.section} ${o.schedule}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+            <div style="flex:1;min-width:200px;">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                <h3 style="margin:0;">${o.subject_name}</h3>
+                <span class="badge badge-info" style="font-size:0.75rem;padding:2px 8px;">${o.subject_code}</span>
+              </div>
+              <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:6px;">Section: ${o.section}</p>
+              <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:0.85rem;color:var(--text-muted);">
+                <span>📅 ${o.schedule}</span>
+                <span>🏫 ${o.semester} ${o.school_year}</span>
+              </div>
+            </div>
+            <div style="text-align:right;min-width:130px;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--primary);line-height:1.2;">${o.enrolled_count}</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:10px;">Enrolled</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                <a href="/faculty/attendance/${o.id}" class="btn btn-sm btn-primary">📋 Attendance</a>
+                <a href="/faculty/grades/${o.id}" class="btn btn-sm btn-success">📊 Grades</a>
+                <button class="btn btn-sm btn-ghost" onclick="viewClassRoster(${o.id})">👥 Roster</button>
+              </div>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;">
-            <a href="/faculty/attendance/${o.id}" class="btn btn-primary">📋 Attendance</a>
-            <a href="/faculty/grades/${o.id}" class="btn btn-success">📊 Grades</a>
-          </div>
-        </div>
-      </div>
-    `).join('') : '<div class="card" style="padding:40px;text-align:center;color:var(--text-muted);"><p>No classes assigned to you yet.</p></div>'}`;
+        </div>`;
+      });
+    } else {
+      html += '<div class="card" style="padding:40px;text-align:center;color:var(--text-muted);"><p>No classes assigned to you yet.</p></div>';
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+  } catch (err) { container.innerHTML = `<div class="card" style="padding:40px;text-align:center;"><p style="color:var(--text-muted);">Error loading data: ${err.message}</p></div>`; }
+}
+
+function filterFacultyClasses() {
+  const q = document.getElementById('classSearchInput')?.value.toLowerCase() || '';
+  document.querySelectorAll('#facultyClassCards .card').forEach(card => {
+    card.style.display = card.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+async function viewClassRoster(offeringId) {
+  try {
+    const data = await API.get(`/api/attendance?offering_id=${offeringId}`);
+    const tbody = document.getElementById('rosterModalBody');
+    if (!tbody) return;
+    document.getElementById('rosterModalTitle').textContent = `Class Roster`;
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="2"><div class="empty-state"><p>No enrolled students found</p></div></td></tr>';
+    } else {
+      tbody.innerHTML = data.map((s, i) => `<tr><td style="width:40px;color:var(--text-muted);">${i + 1}</td><td><strong>${s.student_name}</strong></td></tr>`).join('');
+    }
+    document.getElementById('rosterModal').classList.add('show');
   } catch (err) { showToast(err.message, 'error'); }
 }
 
@@ -968,8 +1007,7 @@ async function initFacultyAttendance() {
   const offeringId = parseInt(pathParts[pathParts.length - 1]);
   if (!offeringId) return;
   try {
-    const offering = await API.get(`/api/offerings`);
-    const o = offering.find(x => x.id === offeringId);
+    const o = await API.get(`/api/offerings/${offeringId}`);
     const titleEl = document.getElementById('attClassTitle');
     if (titleEl && o) titleEl.textContent = `Attendance: ${o.subject_name} - ${o.section}`;
 
@@ -1045,8 +1083,7 @@ async function initFacultyGrades() {
   const offeringId = parseInt(pathParts[pathParts.length - 1]);
   if (!offeringId) return;
   try {
-    const offerings = await API.get('/api/offerings');
-    const o = offerings.find(x => x.id === offeringId);
+    const o = await API.get(`/api/offerings/${offeringId}`);
     const titleEl = document.getElementById('gradeClassTitle');
     if (titleEl && o) titleEl.textContent = `Grades: ${o.subject_name} - ${o.section}`;
 
@@ -1144,7 +1181,7 @@ async function initStudentEnrollment() {
     if (!studentId) { showToast('Student profile not found', 'error'); return; }
 
     const [offerings, enrollments] = await Promise.all([
-      API.get('/api/offerings'),
+      API.get('/api/offerings?course_id=' + profile.course_id),
       API.get(`/api/enrollments/student/${studentId}`)
     ]);
 

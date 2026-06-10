@@ -433,22 +433,31 @@ class MongoRepository(Repository):
 
     # ======================== CLASS OFFERINGS ========================
 
-    def list_offerings(self) -> list[dict]:
-        return self._docs(self.db.class_offerings.aggregate([
+    def list_offerings(self, course_id: int = None) -> list[dict]:
+        pipeline = [
             {"$lookup": {"from": "subjects", "localField": "subject_id",
                           "foreignField": "_id", "as": "sub"}},
             {"$unwind": "$sub"},
+            {"$lookup": {"from": "courses", "localField": "sub.course_id",
+                          "foreignField": "_id", "as": "cou"}},
+            {"$unwind": "$cou"},
             {"$lookup": {"from": "faculties", "localField": "faculty_id",
                           "foreignField": "_id", "as": "fac"}},
             {"$unwind": "$fac"},
+        ]
+        if course_id is not None:
+            pipeline.append({"$match": {"sub.course_id": course_id}})
+        pipeline.extend([
             {"$project": {
                 "id": "$_id", "subject_id": 1,
                 "subject_name": "$sub.name", "subject_code": "$sub.code",
+                "course_id": "$sub.course_id", "course_name": "$cou.name",
                 "section": 1, "schedule": 1, "faculty_id": 1,
                 "faculty_name": "$fac.name", "semester": 1, "school_year": 1
             }},
             {"$sort": {"_id": 1}}
-        ]))
+        ])
+        return self._docs(self.db.class_offerings.aggregate(pipeline))
 
     def get_offering(self, offering_id: int) -> Optional[dict]:
         return self._doc_one(self.db.class_offerings.aggregate([
@@ -456,12 +465,16 @@ class MongoRepository(Repository):
             {"$lookup": {"from": "subjects", "localField": "subject_id",
                           "foreignField": "_id", "as": "sub"}},
             {"$unwind": "$sub"},
+            {"$lookup": {"from": "courses", "localField": "sub.course_id",
+                          "foreignField": "_id", "as": "cou"}},
+            {"$unwind": "$cou"},
             {"$lookup": {"from": "faculties", "localField": "faculty_id",
                           "foreignField": "_id", "as": "fac"}},
             {"$unwind": "$fac"},
             {"$project": {
                 "id": "$_id", "subject_id": 1,
                 "subject_name": "$sub.name", "subject_code": "$sub.code",
+                "course_id": "$sub.course_id", "course_name": "$cou.name",
                 "section": 1, "schedule": 1, "faculty_id": 1,
                 "faculty_name": "$fac.name", "semester": 1, "school_year": 1
             }}
@@ -666,7 +679,7 @@ class MongoRepository(Repository):
             result.append({
                 "student_id": row["student_id"],
                 "student_name": row["student_name"],
-                "records": [{"id": r["_id"], "date": r["date"], "status": r["status"]}
+                "records": [{"id": str(r["_id"]), "date": r["date"], "status": r["status"]}
                            for r in records]
             })
         return result
@@ -677,7 +690,7 @@ class MongoRepository(Repository):
         ).sort("date", 1))
         return {
             "student_id": student_id,
-            "records": [{"id": r["_id"], "date": r["date"], "status": r["status"]}
+            "records": [{"id": str(r["_id"]), "date": r["date"], "status": r["status"]}
                        for r in records]
         }
 

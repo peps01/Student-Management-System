@@ -34,6 +34,20 @@
     <div id="facultyClassesContent"></div>
   </main>
   <div id="toastContainer" class="toast-container"></div>
+
+  <div class="modal-overlay" id="rosterModal">
+    <div class="modal">
+      <div class="modal-header"><h2 id="rosterModalTitle">Class Roster</h2><button class="close-btn" onclick="closeModal('rosterModal')">&times;</button></div>
+      <div class="modal-body" style="max-height:400px;overflow-y:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid var(--border);"><th style="padding:8px 4px;width:40px;text-align:left;color:var(--text-muted);">#</th><th style="padding:8px 4px;text-align:left;">Student Name</th></tr></thead>
+          <tbody id="rosterModalBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer"><button class="btn btn-sm btn-ghost" onclick="closeModal('rosterModal')">Close</button></div>
+    </div>
+  </div>
+
   <script src="/static/js/script.js"></script>
 </body>
 </html>

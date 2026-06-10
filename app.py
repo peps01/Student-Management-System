@@ -1,6 +1,5 @@
 import config
 from flask import Flask, render_template, redirect, url_for
-from database.sqlite_repo import SqliteRepository
 from database.mongo_repo import MongoRepository
 from routes.auth import auth_bp
 from routes.profile import profile_bp
@@ -21,14 +20,7 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = config.SECRET_KEY
 
-    if config.DATABASE_TYPE == "sqlite":
-        repo = SqliteRepository(config.SQLITE_DB_PATH)
-    elif config.DATABASE_TYPE == "mongodb":
-        repo = MongoRepository(config.MONGO_URI)
-    else:
-        raise ValueError(f"Unsupported DATABASE_TYPE: {config.DATABASE_TYPE}")
-
-    app.config["repository"] = repo
+    app.config["repository"] = MongoRepository(config.MONGO_URI)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(profile_bp)

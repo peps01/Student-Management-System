@@ -24,7 +24,28 @@ def create_enrollment():
         return jsonify({"error": "student_id is required"}), 400
     if not offering_ids or not isinstance(offering_ids, list):
         return jsonify({"error": "offering_ids must be a non-empty list"}), 400
+
     repo = current_app.config["repository"]
+
+    # Validate student's course matches each offering's subject course
+    student = repo.get_student(student_id)
+    if student is None:
+        return jsonify({"error": "Student not found"}), 404
+    student_course = student.get("course_id")
+    bad_ids = []
+    for oid in offering_ids:
+        offering = repo.get_offering(oid)
+        if offering is None:
+            bad_ids.append(oid)
+            continue
+        if offering.get("course_id") != student_course:
+            bad_ids.append(oid)
+    if bad_ids:
+        return jsonify({
+            "error": "Some offerings do not belong to your course",
+            "invalid_offering_ids": bad_ids
+        }), 400
+
     enrollment = repo.create_enrollment(student_id, offering_ids)
     return jsonify(enrollment), 201
 

@@ -8,7 +8,8 @@ offerings_bp = Blueprint("offerings", __name__)
 @require_auth
 def list_offerings():
     repo = current_app.config["repository"]
-    return jsonify(repo.list_offerings())
+    course_id = request.args.get("course_id", type=int)
+    return jsonify(repo.list_offerings(course_id))
 
 
 @offerings_bp.route("/api/offerings", methods=["POST"])
@@ -24,6 +25,16 @@ def add_offering():
     repo = current_app.config["repository"]
     offering = repo.add_offering(data)
     return jsonify(offering), 201
+
+
+@offerings_bp.route("/api/offerings/<int:offering_id>", methods=["GET"])
+@require_auth
+def get_offering(offering_id):
+    repo = current_app.config["repository"]
+    offering = repo.get_offering(offering_id)
+    if offering is None:
+        return jsonify({"error": "Offering not found"}), 404
+    return jsonify(offering)
 
 
 @offerings_bp.route("/api/offerings/<int:offering_id>", methods=["PUT"])

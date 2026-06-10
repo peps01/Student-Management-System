@@ -84,8 +84,12 @@ def login():
 
     role = user["role"]
     redirect = "/admin/dashboard"
+    extra = {}
     if role == "Faculty":
         redirect = "/faculty/dashboard"
+        f = repo.get_faculty_by_username(username)
+        if f:
+            extra["faculty_id"] = f["id"]
     elif role == "Student":
         redirect = "/student/dashboard"
 
@@ -98,6 +102,7 @@ def login():
         "email": user["email"],
         "role": role,
         "redirect": redirect,
+        **extra,
     })
 
 
