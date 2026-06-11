@@ -431,6 +431,30 @@ class MongoRepository(Repository):
             self.db.users.delete_one({"_id": faculty["username"]})
         return result.deleted_count > 0
 
+    # ======================== SECTIONS ========================
+
+    def list_sections(self) -> list[dict]:
+        return self._docs(self.db.sections.find().sort("name", 1))
+
+    def get_section(self, section_id: int) -> Optional[dict]:
+        return self._doc(self.db.sections.find_one({"_id": section_id}))
+
+    def add_section(self, data: dict) -> dict:
+        sid = self._next_id("sections")
+        self.db.sections.insert_one({"_id": sid, "name": data["name"]})
+        return {"id": sid, "name": data["name"]}
+
+    def update_section(self, section_id: int, data: dict) -> bool:
+        result = self.db.sections.update_one(
+            {"_id": section_id},
+            {"$set": {"name": data["name"]}}
+        )
+        return result.modified_count > 0
+
+    def delete_section(self, section_id: int) -> bool:
+        result = self.db.sections.delete_one({"_id": section_id})
+        return result.deleted_count > 0
+
     # ======================== CLASS OFFERINGS ========================
 
     def list_offerings(self, course_id: int = None) -> list[dict]:
@@ -444,6 +468,9 @@ class MongoRepository(Repository):
             {"$lookup": {"from": "faculties", "localField": "faculty_id",
                           "foreignField": "_id", "as": "fac"}},
             {"$unwind": "$fac"},
+            {"$lookup": {"from": "sections", "localField": "section_id",
+                          "foreignField": "_id", "as": "sec"}},
+            {"$unwind": "$sec"},
         ]
         if course_id is not None:
             pipeline.append({"$match": {"sub.course_id": course_id}})
@@ -452,7 +479,8 @@ class MongoRepository(Repository):
                 "id": "$_id", "subject_id": 1,
                 "subject_name": "$sub.name", "subject_code": "$sub.code",
                 "course_id": "$sub.course_id", "course_name": "$cou.name",
-                "section": 1, "schedule": 1, "faculty_id": 1,
+                "section_id": 1, "section_name": "$sec.name",
+                "schedule": 1, "faculty_id": 1,
                 "faculty_name": "$fac.name", "semester": 1, "school_year": 1
             }},
             {"$sort": {"_id": 1}}
@@ -471,11 +499,15 @@ class MongoRepository(Repository):
             {"$lookup": {"from": "faculties", "localField": "faculty_id",
                           "foreignField": "_id", "as": "fac"}},
             {"$unwind": "$fac"},
+            {"$lookup": {"from": "sections", "localField": "section_id",
+                          "foreignField": "_id", "as": "sec"}},
+            {"$unwind": "$sec"},
             {"$project": {
                 "id": "$_id", "subject_id": 1,
                 "subject_name": "$sub.name", "subject_code": "$sub.code",
                 "course_id": "$sub.course_id", "course_name": "$cou.name",
-                "section": 1, "schedule": 1, "faculty_id": 1,
+                "section_id": 1, "section_name": "$sec.name",
+                "schedule": 1, "faculty_id": 1,
                 "faculty_name": "$fac.name", "semester": 1, "school_year": 1
             }}
         ]))
@@ -484,7 +516,7 @@ class MongoRepository(Repository):
         oid = self._next_id("class_offerings")
         self.db.class_offerings.insert_one({
             "_id": oid, "subject_id": data["subject_id"],
-            "section": data["section"], "schedule": data["schedule"],
+            "section_id": data["section_id"], "schedule": data["schedule"],
             "faculty_id": data["faculty_id"], "semester": data["semester"],
             "school_year": data["school_year"]
         })
@@ -494,7 +526,7 @@ class MongoRepository(Repository):
         result = self.db.class_offerings.update_one(
             {"_id": offering_id},
             {"$set": {
-                "subject_id": data["subject_id"], "section": data["section"],
+                "subject_id": data["subject_id"], "section_id": data["section_id"],
                 "schedule": data["schedule"], "faculty_id": data["faculty_id"],
                 "semester": data["semester"], "school_year": data["school_year"]
             }}
@@ -512,9 +544,13 @@ class MongoRepository(Repository):
             {"$lookup": {"from": "courses", "localField": "course_id",
                           "foreignField": "_id", "as": "c"}},
             {"$unwind": "$c"},
+            {"$lookup": {"from": "sections", "localField": "section_id",
+                          "foreignField": "_id", "as": "s"}},
+            {"$unwind": {"path": "$s", "preserveNullAndEmptyArrays": True}},
             {"$project": {
                 "id": "$_id", "student_number": 1, "name": 1, "email": 1,
-                "course_id": 1, "course_name": "$c.name", "year": 1, "username": 1
+                "course_id": 1, "course_name": "$c.name", "year": 1,
+                "username": 1, "section_id": 1, "section_name": "$s.name"
             }},
             {"$sort": {"_id": 1}}
         ]))
@@ -525,9 +561,13 @@ class MongoRepository(Repository):
             {"$lookup": {"from": "courses", "localField": "course_id",
                           "foreignField": "_id", "as": "c"}},
             {"$unwind": "$c"},
+            {"$lookup": {"from": "sections", "localField": "section_id",
+                          "foreignField": "_id", "as": "s"}},
+            {"$unwind": {"path": "$s", "preserveNullAndEmptyArrays": True}},
             {"$project": {
                 "id": "$_id", "student_number": 1, "name": 1, "email": 1,
-                "course_id": 1, "course_name": "$c.name", "year": 1, "username": 1
+                "course_id": 1, "course_name": "$c.name", "year": 1,
+                "username": 1, "section_id": 1, "section_name": "$s.name"
             }}
         ]))
 
@@ -537,21 +577,29 @@ class MongoRepository(Repository):
         pw = "student123"
         self.create_user(username, data["name"], data["email"], pw, "Student")
         sid = self._next_id("students")
-        self.db.students.insert_one({
+        doc = {
             "_id": sid, "student_number": sn, "name": data["name"],
             "email": data["email"], "course_id": data["course_id"],
             "year": data["year"], "username": username
-        })
+        }
+        if data.get("section_id"):
+            doc["section_id"] = int(data["section_id"])
+        self.db.students.insert_one(doc)
         self._log("admin", f"Created student {sn}")
         return {"id": sid, **data, "username": username, "password": pw}
 
     def update_student(self, student_id: int, data: dict) -> bool:
+        set_fields = {
+            "name": data["name"], "email": data["email"],
+            "course_id": data["course_id"], "year": data["year"]
+        }
+        if data.get("section_id") is not None:
+            set_fields["section_id"] = int(data["section_id"])
+        else:
+            set_fields["section_id"] = None
         result = self.db.students.update_one(
             {"_id": student_id},
-            {"$set": {
-                "name": data["name"], "email": data["email"],
-                "course_id": data["course_id"], "year": data["year"]
-            }}
+            {"$set": set_fields}
         )
         if result.modified_count > 0:
             student = self.db.students.find_one({"_id": student_id})
@@ -913,12 +961,14 @@ class MongoRepository(Repository):
             enrolled_count = self.db.enrollments.count_documents({
                 "items.offering_id": oid, "status": "Approved"
             })
+            section_doc = self.db.sections.find_one({"_id": o.get("section_id", 0)})
             result.append({
                 "id": oid,
                 "subject_id": o["subject_id"],
                 "subject_name": subject["name"] if subject else "",
                 "subject_code": subject["code"] if subject else "",
-                "section": o["section"],
+                "section_id": o.get("section_id", 0),
+                "section_name": section_doc["name"] if section_doc else o.get("section", ""),
                 "schedule": o["schedule"],
                 "semester": o["semester"],
                 "school_year": o["school_year"],

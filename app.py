@@ -12,6 +12,7 @@ from routes.courses import courses_bp
 from routes.subjects import subjects_bp
 from routes.faculties import faculties_bp
 from routes.class_offerings import offerings_bp
+from routes.sections import sections_bp
 from routes.enrollments import enrollments_bp
 from routes.reports import reports_bp
 
@@ -32,6 +33,7 @@ def create_app():
     app.register_blueprint(courses_bp)
     app.register_blueprint(subjects_bp)
     app.register_blueprint(faculties_bp)
+    app.register_blueprint(sections_bp)
     app.register_blueprint(offerings_bp)
     app.register_blueprint(enrollments_bp)
     app.register_blueprint(reports_bp)
@@ -68,6 +70,10 @@ def create_app():
     @app.route("/admin/offerings")
     def admin_offerings():
         return render_template("offerings.html")
+
+    @app.route("/admin/sections")
+    def admin_sections():
+        return render_template("sections.html")
 
     @app.route("/admin/enrollments")
     def admin_enrollments():

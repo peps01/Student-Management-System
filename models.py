@@ -23,6 +23,7 @@ class Student:
     course_name: str = ""
     year: int = 1
     username: str = ""
+    section_id: Optional[int] = None
 
 
 @dataclass

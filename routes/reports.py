@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
-from routes.auth import require_role
+from routes.auth import require_auth, require_role
 
 reports_bp = Blueprint("reports", __name__)
 
@@ -9,6 +9,18 @@ reports_bp = Blueprint("reports", __name__)
 def dashboard_stats():
     repo = current_app.config["repository"]
     return jsonify(repo.get_dashboard_stats())
+
+
+@reports_bp.route("/api/dashboard/student", methods=["GET"])
+@require_auth
+def student_dashboard():
+    from flask import g
+    username = g.username
+    repo = current_app.config["repository"]
+    student = repo.get_student_by_username(username)
+    if not student:
+        return jsonify({"error": "Student not found"}), 404
+    return jsonify(repo.get_student_dashboard(student["id"]))
 
 
 @reports_bp.route("/api/reports/enrollment", methods=["GET"])

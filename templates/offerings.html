@@ -17,6 +17,7 @@
       <a href="/admin/courses"><span class="nav-icon">📚</span> Courses</a>
       <a href="/admin/subjects"><span class="nav-icon">📖</span> Subjects</a>
       <a href="/admin/faculties"><span class="nav-icon">👨‍🏫</span> Faculties</a>
+      <a href="/admin/sections"><span class="nav-icon">📋</span> Sections</a>
       <a href="/admin/offerings" class="active"><span class="nav-icon">📅</span> Class Offerings</a>
       <div class="nav-section">Management</div>
       <a href="/admin/students"><span class="nav-icon">👥</span> Students</a>
@@ -53,7 +54,7 @@
       <form id="addOfferingForm">
         <div class="modal-body">
           <div class="form-group"><label>Subject</label><select id="addOffSubject" name="subject_id" class="form-control" required></select></div>
-          <div class="form-group"><label>Section</label><input type="text" id="addOffSection" name="section" class="form-control" placeholder="e.g. BSIT-1A" required></div>
+          <div class="form-group"><label>Section</label><select id="addOffSection" name="section_id" class="form-control" required></select></div>
           <div class="form-group"><label>Schedule</label><input type="text" id="addOffSchedule" name="schedule" class="form-control" placeholder="e.g. Mon-Wed 8:00-10:00 AM" required></div>
           <div class="form-group"><label>Faculty</label><select id="addOffFaculty" name="faculty_id" class="form-control" required></select></div>
           <div class="form-group"><label>Semester</label><select id="addOffSemester" name="semester" class="form-control" required>
@@ -78,7 +79,7 @@
         <div class="modal-body">
           <input type="hidden" id="editOffId" name="id">
           <div class="form-group"><label>Subject</label><select id="editOffSubject" name="subject_id" class="form-control" required></select></div>
-          <div class="form-group"><label>Section</label><input type="text" id="editOffSection" name="section" class="form-control" required></div>
+          <div class="form-group"><label>Section</label><select id="editOffSection" name="section_id" class="form-control" required></select></div>
           <div class="form-group"><label>Schedule</label><input type="text" id="editOffSchedule" name="schedule" class="form-control" required></div>
           <div class="form-group"><label>Faculty</label><select id="editOffFaculty" name="faculty_id" class="form-control" required></select></div>
           <div class="form-group"><label>Semester</label><select id="editOffSemester" name="semester" class="form-control" required>

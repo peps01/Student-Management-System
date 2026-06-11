@@ -121,6 +121,15 @@ def main():
         })
     print(f"  Faculty: {len(faculty_docs)}")
 
+    # ── Sections ─────────────────────────────────────────────────
+    section_names = ["BSIT-1A", "BSCS-1A", "BSCE-1A", "BSBA-1A"]
+    section_docs = []
+    for name in section_names:
+        sec_id = sid.next("sections")
+        db.sections.insert_one({"_id": sec_id, "name": name})
+        section_docs.append({"id": sec_id, "name": name})
+    print(f"  Sections: {len(section_docs)}")
+
     # ── Students ─────────────────────────────────────────────────────
     student_data = [
         # (student_number, name, email, course_code, year)
@@ -140,6 +149,7 @@ def main():
         ("2023-0002", "Katrina Bautista", "katrina@email.com", "BSIT", 4),
         ("2022-0001", "Leo Santiago", "leo@email.com", "BSCS", 5),
     ]
+    section_by_course = {"BSIT": "BSIT-1A", "BSCS": "BSCS-1A", "BSCE": "BSCE-1A", "BSBA": "BSBA-1A"}
     student_docs = []
     for sn, name, email, course_code, yr in student_data:
         course = next(c for c in course_docs if c["code"] == course_code)
@@ -150,11 +160,17 @@ def main():
             "join_date": str(date.today())
         })
         stid = sid.next("students")
-        db.students.insert_one({
+        doc = {
             "_id": stid, "student_number": sn, "name": name,
             "email": email, "course_id": course["id"],
             "year": yr, "username": uname
-        })
+        }
+        sec_name = section_by_course.get(course_code)
+        if sec_name:
+            sec = next((s for s in section_docs if s["name"] == sec_name), None)
+            if sec:
+                doc["section_id"] = sec["id"]
+        db.students.insert_one(doc)
         student_docs.append({
             "id": stid, "name": name, "course_id": course["id"],
             "course_code": course_code, "sn": sn
@@ -173,12 +189,13 @@ def main():
         (8, "BSBA-1A", "Mon-Wed 3:00 PM - 5:00 PM", "ltan", "1st Sem", "2025-2026"),
     ]
     offering_docs = []
-    for subj_code, section, sched, fac_uname, sem, sy in offerings_data:
+    for subj_code, section_name, sched, fac_uname, sem, sy in offerings_data:
         subj = next(s for s in subject_docs if s["id"] == subj_code)
         fac = next(f for f in faculty_docs if f["username"] == fac_uname)
+        sec = next(s for s in section_docs if s["name"] == section_name)
         oid = sid.next("class_offerings")
         db.class_offerings.insert_one({
-            "_id": oid, "subject_id": subj["id"], "section": section,
+            "_id": oid, "subject_id": subj["id"], "section_id": sec["id"],
             "schedule": sched, "faculty_id": fac["id"],
             "semester": sem, "school_year": sy
         })
@@ -337,7 +354,7 @@ def main():
     print(f"  Audit logs: 1")
 
     # ── Sync MongoDB counters ─────────────────────────────────────────
-    for coll_name in ['departments', 'courses', 'subjects', 'faculties',
+    for coll_name in ['departments', 'courses', 'subjects', 'faculties', 'sections',
                       'students', 'class_offerings', 'enrollments',
                       'grades', 'attendance_records', 'announcements', 'audit_logs']:
         last = db[coll_name].find_one(sort=[("_id", -1)])
@@ -357,6 +374,7 @@ def main():
     print(f"  {'Courses':20} {len(course_docs):>3}")
     print(f"  {'Subjects':20} {len(subject_docs):>3}")
     print(f"  {'Faculty':20} {len(faculty_docs):>3}")
+    print(f"  {'Sections':20} {len(section_docs):>3}")
     print(f"  {'Students':20} {len(student_docs):>3}")
     print(f"  {'Class Offerings':20} {len(offering_docs):>3}")
     print(f"  {'Enrollments':20} {len(enrollment_data):>3}")

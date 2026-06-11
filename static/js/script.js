@@ -444,22 +444,87 @@ async function deleteFaculty(id) {
   catch (err) { showToast(err.message, 'error'); }
 }
 
+// ======================== ADMIN: SECTIONS ========================
+
+async function loadSections() {
+  const data = await API.get('/api/sections');
+  const table = document.getElementById('sectionsTable');
+  if (!table) return;
+  table.innerHTML = `<thead><tr><th>Name</th><th style="text-align:right;">Actions</th></tr></thead><tbody>
+    ${data.map(s => `<tr><td><strong>${s.name}</strong></td><td style="text-align:right;"><button class="btn btn-sm btn-primary" onclick="editSection(${s.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteSection(${s.id})">Delete</button></td></tr>`).join('')}
+  </tbody>`;
+  window._sections = data;
+}
+
+async function initSections() {
+  await loadSections();
+  document.getElementById('addSectionForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    try {
+      await API.post('/api/sections', { name: fd.get('name') });
+      await loadSections();
+      closeModal('addSectionModal');
+      this.reset();
+      showToast('Section added', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+  document.getElementById('editSectionForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const id = fd.get('id');
+    try {
+      await API.put(`/api/sections/${id}`, { name: fd.get('name') });
+      await loadSections();
+      closeModal('editSectionModal');
+      showToast('Section updated', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
+function editSection(id) {
+  const s = (window._sections || []).find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('editSectionId').value = s.id;
+  document.getElementById('editSectionName').value = s.name;
+  openModal('editSectionModal');
+}
+
+async function deleteSection(id) {
+  if (!confirm('Delete this section?')) return;
+  try { await API.del(`/api/sections/${id}`); await loadSections(); showToast('Section deleted', 'success'); }
+  catch (err) { showToast(err.message, 'error'); }
+}
+
 // ======================== ADMIN: OFFERINGS ========================
 
 async function loadOfferings() {
-  const [offerings, subjects, faculties] = await Promise.all([
-    API.get('/api/offerings'), API.get('/api/subjects'), API.get('/api/faculties')
+  const [offerings, subjects, faculties, sections] = await Promise.all([
+    API.get('/api/offerings'), API.get('/api/subjects'), API.get('/api/faculties'), API.get('/api/sections')
   ]);
   const table = document.getElementById('offeringsTable');
   if (!table) return;
   const subjOpts = () => subjects.map(s => `<option value="${s.id}">${s.code} - ${s.name}</option>`).join('');
   const facOpts = () => faculties.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+  const secOpts = () => sections.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  const sectionFilter = `<div style="margin-bottom:12px;"><select id="sectionFilter" onchange="filterOfferingsBySection()" class="form-control" style="max-width:250px;"><option value="">All Sections</option>${sections.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}</select></div>`;
+  const existing = document.getElementById('sectionFilterWrap');
+  if (!existing) {
+    const wrap = document.createElement('div');
+    wrap.id = 'sectionFilterWrap';
+    wrap.innerHTML = sectionFilter;
+    table.parentElement.insertBefore(wrap, table);
+  }
   table.innerHTML = `<thead><tr><th>Subject</th><th>Section</th><th>Schedule</th><th>Faculty</th><th>Semester</th><th>School Year</th><th>Actions</th></tr></thead><tbody>
-    ${offerings.map(o => `<tr><td><strong>${o.subject_name}</strong></td><td>${o.section}</td><td>${o.schedule}</td><td>${o.faculty_name}</td><td>${o.semester}</td><td>${o.school_year}</td><td><button class="btn btn-sm btn-primary" onclick="editOffering(${o.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteOffering(${o.id})">Delete</button></td></tr>`).join('')}
+    ${offerings.map(o => `<tr data-section-id="${o.section_id}"><td><strong>${o.subject_name}</strong></td><td>${o.section_name}</td><td>${o.schedule}</td><td>${o.faculty_name}</td><td>${o.semester}</td><td>${o.school_year}</td><td><button class="btn btn-sm btn-primary" onclick="editOffering(${o.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteOffering(${o.id})">Delete</button></td></tr>`).join('')}
   </tbody>`;
   ['addOffSubject', 'editOffSubject'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '<option value="">Select subject</option>' + subjOpts();
+  });
+  ['addOffSection', 'editOffSection'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Select section</option>' + secOpts();
   });
   ['addOffFaculty', 'editOffFaculty'].forEach(id => {
     const el = document.getElementById(id);
@@ -468,6 +533,14 @@ async function loadOfferings() {
   window._offerings = offerings;
   window._subjects = subjects;
   window._faculties = faculties;
+  window._sections = sections;
+}
+
+function filterOfferingsBySection() {
+  const val = document.getElementById('sectionFilter')?.value;
+  document.querySelectorAll('#offeringsTable tbody tr').forEach(row => {
+    row.style.display = !val || row.dataset.sectionId === val ? '' : 'none';
+  });
 }
 
 async function initOfferings() {
@@ -477,7 +550,7 @@ async function initOfferings() {
     const fd = new FormData(this);
     try {
       await API.post('/api/offerings', {
-        subject_id: parseInt(fd.get('subject_id')), section: fd.get('section'),
+        subject_id: parseInt(fd.get('subject_id')), section_id: parseInt(fd.get('section_id')),
         schedule: fd.get('schedule'), faculty_id: parseInt(fd.get('faculty_id')),
         semester: fd.get('semester'), school_year: fd.get('school_year')
       });
@@ -493,7 +566,7 @@ async function initOfferings() {
     const id = fd.get('id');
     try {
       await API.put(`/api/offerings/${id}`, {
-        subject_id: parseInt(fd.get('subject_id')), section: fd.get('section'),
+        subject_id: parseInt(fd.get('subject_id')), section_id: parseInt(fd.get('section_id')),
         schedule: fd.get('schedule'), faculty_id: parseInt(fd.get('faculty_id')),
         semester: fd.get('semester'), school_year: fd.get('school_year')
       });
@@ -509,7 +582,7 @@ function editOffering(id) {
   if (!o) return;
   document.getElementById('editOffId').value = o.id;
   document.getElementById('editOffSubject').value = o.subject_id;
-  document.getElementById('editOffSection').value = o.section;
+  document.getElementById('editOffSection').value = o.section_id;
   document.getElementById('editOffSchedule').value = o.schedule;
   document.getElementById('editOffFaculty').value = o.faculty_id;
   document.getElementById('editOffSemester').value = o.semester;
@@ -585,7 +658,8 @@ function goToPage(page) {
 }
 
 async function loadStudents() {
-  studentsData = await API.get('/api/students');
+  const students = await API.get('/api/students');
+  studentsData = students.map(s => ({ ...s, _sections: s.section_name || '' }));
   return studentsData;
 }
 
@@ -601,12 +675,12 @@ function renderStudents(filter) {
   const pageData = paginateData(sorted);
   renderPagination(sorted.length);
 
-  let html = `<thead><tr>${sortableHeader('Student #', 'student_number')}${sortableHeader('Name', 'name')}${sortableHeader('Email', 'email')}${sortableHeader('Course', 'course_name')}${sortableHeader('Year', 'year')}<th>Actions</th></tr></thead><tbody>`;
+  let html = `<thead><tr>${sortableHeader('Student #', 'student_number')}${sortableHeader('Name', 'name')}${sortableHeader('Email', 'email')}${sortableHeader('Course', 'course_name')}${sortableHeader('Year', 'year')}<th>Sections</th><th>Actions</th></tr></thead><tbody>`;
   if (!pageData.length) {
-    html += `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><p>No students found</p></div></td></tr>`;
+    html += `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><p>No students found</p></div></td></tr>`;
   } else {
     pageData.forEach(s => {
-      html += `<tr><td>${s.student_number}</td><td><strong>${s.name}</strong></td><td>${s.email}</td><td>${s.course_name}</td><td>Year ${s.year}</td><td><button class="btn btn-sm btn-primary" onclick="editStudent(${s.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`;
+      html += `<tr><td>${s.student_number}</td><td><strong>${s.name}</strong></td><td>${s.email}</td><td>${s.course_name}</td><td>Year ${s.year}</td><td style="font-size:0.85rem;">${s._sections || '<span style="color:var(--text-muted);">—</span>'}</td><td><button class="btn btn-sm btn-primary" onclick="editStudent(${s.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`;
     });
   }
   html += `</tbody>`;
@@ -615,11 +689,19 @@ function renderStudents(filter) {
 
 async function initStudentsPage() {
   await loadStudents();
-  const courses = await API.get('/api/courses');
+  const [courses, sections] = await Promise.all([
+    API.get('/api/courses'),
+    API.get('/api/sections')
+  ]);
   const courseOpts = () => courses.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
   ['addCourse', 'editCourse'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '<option value="">Select course</option>' + courseOpts();
+  });
+  const sectionOpts = () => sections.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  ['addSection', 'editSection'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">No section</option>' + sectionOpts();
   });
   const searchInput = document.getElementById('studentSearch');
   if (searchInput) searchInput.addEventListener('input', function () { currentPage = 1; renderStudents(this.value); });
@@ -628,11 +710,14 @@ async function initStudentsPage() {
   document.getElementById('addStudentForm')?.addEventListener('submit', async function (e) {
     e.preventDefault();
     const fd = new FormData(this);
+    const payload = {
+      student_number: fd.get('student_number'), name: fd.get('name'), email: fd.get('email'),
+      course_id: parseInt(fd.get('course_id')), year: parseInt(fd.get('year'))
+    };
+    const secVal = fd.get('section_id');
+    if (secVal) payload.section_id = parseInt(secVal);
     try {
-      const res = await API.post('/api/students', {
-        student_number: fd.get('student_number'), name: fd.get('name'), email: fd.get('email'),
-        course_id: parseInt(fd.get('course_id')), year: parseInt(fd.get('year'))
-      });
+      const res = await API.post('/api/students', payload);
       await loadStudents();
       renderStudents(document.getElementById('studentSearch').value);
       closeModal('addStudentModal');
@@ -645,8 +730,14 @@ async function initStudentsPage() {
     e.preventDefault();
     const fd = new FormData(this);
     const id = parseInt(fd.get('id'));
+    const payload = {
+      name: fd.get('name'), email: fd.get('email'),
+      course_id: parseInt(fd.get('course_id')), year: parseInt(fd.get('year'))
+    };
+    const secVal = fd.get('section_id');
+    payload.section_id = secVal ? parseInt(secVal) : null;
     try {
-      await API.put(`/api/students/${id}`, { name: fd.get('name'), email: fd.get('email'), course_id: parseInt(fd.get('course_id')), year: parseInt(fd.get('year')) });
+      await API.put(`/api/students/${id}`, payload);
       await loadStudents();
       renderStudents(document.getElementById('studentSearch').value);
       closeModal('editStudentModal');
@@ -663,6 +754,7 @@ function editStudent(id) {
   document.getElementById('editEmail').value = s.email;
   document.getElementById('editCourse').value = s.course_id;
   document.getElementById('editYear').value = s.year;
+  if (document.getElementById('editSection')) document.getElementById('editSection').value = s.section_id || '';
   openModal('editStudentModal');
 }
 
@@ -720,7 +812,7 @@ async function rejectEnrollment(id) {
 async function initAdminGrades() {
   const offerings = await API.get('/api/offerings');
   const sel = document.getElementById('adminGradeOffering');
-  if (sel) sel.innerHTML = '<option value="">Select offering</option>' + offerings.map(o => `<option value="${o.id}">${o.subject_name} - ${o.section} (${o.schedule})</option>`).join('');
+  if (sel) sel.innerHTML = '<option value="">Select offering</option>' + offerings.map(o => `<option value="${o.id}">${o.subject_name} - ${o.section_name} (${o.schedule})</option>`).join('');
 }
 
 async function loadAdminGrades() {
@@ -752,7 +844,7 @@ async function loadAdminGrades() {
 async function initAdminAttendance() {
   const offerings = await API.get('/api/offerings');
   const sel = document.getElementById('adminAttOffering');
-  if (sel) sel.innerHTML = '<option value="">Select offering</option>' + offerings.map(o => `<option value="${o.id}">${o.subject_name} - ${o.section}</option>`).join('');
+  if (sel) sel.innerHTML = '<option value="">Select offering</option>' + offerings.map(o => `<option value="${o.id}">${o.subject_name} - ${o.section_name}</option>`).join('');
 }
 
 async function loadAdminAttendance() {
@@ -905,26 +997,32 @@ async function renderFacultyDashboard() {
     if (!facultyId) { container.innerHTML = '<div class="card" style="padding:40px;text-align:center;"><p style="color:var(--text-muted);">Faculty profile not found. Please contact the administrator.</p></div>'; return; }
     const offerings = await API.get(`/api/offerings/faculty/${facultyId}`);
     const totalStudents = offerings.reduce((sum, o) => sum + (o.enrolled_count || 0), 0);
+    const grouped = {};
+    offerings.forEach(o => {
+      const key = o.section_name || 'Unassigned';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(o);
+    });
+    const sectionKeys = Object.keys(grouped).sort();
     container.innerHTML = `
       <div class="stat-cards">
         <div class="card stat-card"><div class="stat-icon blue">📚</div><div class="stat-info"><h3>${offerings.length}</h3><p>Assigned Classes</p></div></div>
         <div class="card stat-card"><div class="stat-icon green">👥</div><div class="stat-info"><h3>${totalStudents}</h3><p>Total Students</p></div></div>
       </div>
-      <div class="card" style="padding:22px;">
-        <h3 style="font-size:1.05rem;margin-bottom:16px;">My Classes</h3>
-        ${offerings.length ? offerings.map(o => `
-          <div style="padding:16px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-              <div><strong>${o.subject_name}</strong> - ${o.section}</div>
+      ${sectionKeys.map(section => `
+        <div class="card" style="padding:18px;margin-bottom:16px;">
+          <h3 style="font-size:1rem;margin-bottom:14px;display:flex;align-items:center;gap:8px;">📋 ${section} <span class="badge badge-info" style="font-size:0.75rem;">${grouped[section].length} class${grouped[section].length !== 1 ? 'es' : ''}</span></h3>
+          ${grouped[section].map(o => `
+            <div style="padding:12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <div><strong>${o.subject_name}</strong><br><span style="color:var(--text-muted);font-size:0.85rem;">${o.schedule} | Enrolled: ${o.enrolled_count}</span></div>
               <div style="display:flex;gap:8px;">
                 <a href="/faculty/attendance/${o.id}" class="btn btn-sm btn-primary">Attendance</a>
                 <a href="/faculty/grades/${o.id}" class="btn btn-sm btn-success">Grades</a>
               </div>
             </div>
-            <p style="color:var(--text-muted);font-size:0.85rem;margin-top:4px;">${o.schedule} | Enrolled: ${o.enrolled_count}</p>
-          </div>
-        `).join('') : '<p style="color:var(--text-muted);">No classes assigned yet.</p>'}
-      </div>
+          `).join('')}
+        </div>
+      `).join('') || '<div class="card" style="padding:22px;"><p style="color:var(--text-muted);">No classes assigned yet.</p></div>'}
     `;
   } catch (err) { container.innerHTML = `<div class="card" style="padding:40px;text-align:center;"><p style="color:var(--text-muted);">Error loading data: ${err.message}</p></div>`; }
 }
@@ -945,14 +1043,14 @@ async function renderFacultyClasses() {
     html += `<div id="facultyClassCards">`;
     if (offerings.length) {
       offerings.forEach(o => {
-        html += `<div class="card" style="padding:20px;margin-bottom:16px;" data-search="${o.subject_name} ${o.subject_code} ${o.section} ${o.schedule}">
+        html += `<div class="card" style="padding:20px;margin-bottom:16px;" data-search="${o.subject_name} ${o.subject_code} ${o.section_name} ${o.schedule}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
             <div style="flex:1;min-width:200px;">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
                 <h3 style="margin:0;">${o.subject_name}</h3>
                 <span class="badge badge-info" style="font-size:0.75rem;padding:2px 8px;">${o.subject_code}</span>
               </div>
-              <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:6px;">Section: ${o.section}</p>
+              <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:6px;">Section: ${o.section_name}</p>
               <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:0.85rem;color:var(--text-muted);">
                 <span>📅 ${o.schedule}</span>
                 <span>🏫 ${o.semester} ${o.school_year}</span>
@@ -1009,7 +1107,7 @@ async function initFacultyAttendance() {
   try {
     const o = await API.get(`/api/offerings/${offeringId}`);
     const titleEl = document.getElementById('attClassTitle');
-    if (titleEl && o) titleEl.textContent = `Attendance: ${o.subject_name} - ${o.section}`;
+    if (titleEl && o) titleEl.textContent = `Attendance: ${o.subject_name} - ${o.section_name}`;
 
     const today = new Date().toISOString().slice(0, 10);
     const dateInput = document.getElementById('attDate');
@@ -1085,7 +1183,7 @@ async function initFacultyGrades() {
   try {
     const o = await API.get(`/api/offerings/${offeringId}`);
     const titleEl = document.getElementById('gradeClassTitle');
-    if (titleEl && o) titleEl.textContent = `Grades: ${o.subject_name} - ${o.section}`;
+    if (titleEl && o) titleEl.textContent = `Grades: ${o.subject_name} - ${o.section_name}`;
 
     const grades = await API.get(`/api/grades?offering_id=${offeringId}`);
     const table = document.getElementById('facultyGradesTable');
@@ -1134,13 +1232,35 @@ async function renderStudentDashboard() {
     const sid = profile.student_id;
     if (!sid) { container.innerHTML = '<p>Student profile not found.</p>'; return; }
 
-    const [grades, attSummary] = await Promise.all([
+    const [grades, attSummary, dash] = await Promise.all([
       API.get(`/api/grades/student/${sid}`),
-      API.get(`/api/attendance/summary/${sid}`)
+      API.get(`/api/attendance/summary/${sid}`),
+      API.get('/api/dashboard/student').catch(() => null)
     ]);
 
     const avgGrade = grades.length ? grades.reduce((s, g) => s + g.final_grade, 0) / grades.length : 0;
     const passed = grades.filter(g => g.grade_status === 'Passed').length;
+
+    let subjectsHtml = '';
+    if (dash && dash.subjects && dash.subjects.length) {
+      const grouped = {};
+      dash.subjects.forEach(s => {
+        const key = s.section_name || 'Other';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(s);
+      });
+      subjectsHtml = Object.keys(grouped).sort().map(section => `
+        <div class="card" style="padding:18px;margin-bottom:16px;">
+          <h3 style="font-size:1rem;margin-bottom:12px;display:flex;align-items:center;gap:8px;">📋 ${section} <span class="badge badge-info" style="font-size:0.75rem;">${grouped[section].length} subject${grouped[section].length !== 1 ? 's' : ''}</span></h3>
+          ${grouped[section].map(s => `
+            <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+              <span><strong>${s.subject_name}</strong> — ${s.schedule || ''}</span>
+              <span style="color:var(--text-muted);font-size:0.85rem;">${s.faculty_name || ''}</span>
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
+    }
 
     container.innerHTML = `
       <div class="stat-cards">
@@ -1149,6 +1269,7 @@ async function renderStudentDashboard() {
         <div class="card stat-card"><div class="stat-icon yellow">✅</div><div class="stat-info"><h3>${passed}/${grades.length}</h3><p>Passed</p></div></div>
         <div class="card stat-card"><div class="stat-icon purple">📋</div><div class="stat-info"><h3>${attSummary.percentage || 0}%</h3><p>Attendance Rate</p></div></div>
       </div>
+      ${subjectsHtml}
       <div class="charts-row">
         <div class="card chart-card">
           <h4>My Grades</h4>
@@ -1158,10 +1279,28 @@ async function renderStudentDashboard() {
         </div>
         <div class="card chart-card">
           <h4>Attendance Summary</h4>
-          <div style="display:flex;flex-direction:column;gap:12px;justify-content:center;height:calc(100% - 34px);">
-            <div><span style="color:var(--text-muted);font-size:0.85rem;">Present:</span> <strong style="font-size:1.2rem;color:var(--success);">${attSummary.present || 0}</strong></div>
-            <div><span style="color:var(--text-muted);font-size:0.85rem;">Absent:</span> <strong style="font-size:1.2rem;color:var(--danger);">${attSummary.absent || 0}</strong></div>
-            <div><span style="color:var(--text-muted);font-size:0.85rem;">Rate:</span> <strong style="font-size:1.2rem;">${attSummary.percentage || 0}%</strong></div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:calc(100% - 34px);gap:12px;">
+            <div style="
+              width:130px;height:130px;border-radius:50%;
+              background:conic-gradient(var(--success) 0deg ${(attSummary.percentage||0)/100*360}deg, var(--danger) ${(attSummary.percentage||0)/100*360}deg 360deg);
+              position:relative;flex-shrink:0;
+            ">
+              <div style="
+                position:absolute;top:50%;left:50%;
+                transform:translate(-50%,-50%);
+                width:76px;height:76px;border-radius:50%;
+                background:var(--card-bg);
+                display:flex;flex-direction:column;
+                align-items:center;justify-content:center;
+              ">
+                <strong style="font-size:1.2rem;">${attSummary.percentage || 0}%</strong>
+                <small style="color:var(--text-muted);font-size:0.7rem;">Rate</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:20px;font-size:0.85rem;">
+              <span><span style="color:var(--success);">●</span> Present: <strong>${attSummary.present || 0}</strong></span>
+              <span><span style="color:var(--danger);">●</span> Absent: <strong>${attSummary.absent || 0}</strong></span>
+            </div>
           </div>
         </div>
       </div>
@@ -1213,15 +1352,23 @@ async function initStudentEnrollment() {
       return;
     }
 
-    container.innerHTML = available.map(o => `
-      <label class="card" style="padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px;">
+    const uniqueSections = [...new Set(available.map(o => o.section_name).filter(Boolean))].sort();
+    let html = '';
+    if (uniqueSections.length > 1) {
+      html += `<div style="margin-bottom:12px;"><select id="enrollSectionFilter" class="form-control" style="max-width:250px;" onchange="filterEnrollOfferings()"><option value="">All Sections</option>${uniqueSections.map(s => `<option value="${s}">${s}</option>`).join('')}</select></div>`;
+    }
+    html += `<div id="enrollOfferingsList">`;
+    html += available.map(o => `
+      <label class="card enroll-card" style="padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px;" data-section="${o.section_name || ''}">
         <input type="checkbox" class="offering-checkbox" value="${o.id}" onchange="toggleOffering(${o.id})">
         <div>
           <strong>${o.subject_name}</strong> (${o.subject_code})
-          <p style="color:var(--text-muted);font-size:0.85rem;">${o.section} | ${o.schedule} | ${o.faculty_name}</p>
+          <p style="color:var(--text-muted);font-size:0.85rem;">${o.section_name} | ${o.schedule} | ${o.faculty_name}</p>
         </div>
       </label>
     `).join('');
+    html += `</div>`;
+    container.innerHTML = html;
   } catch (err) { showToast(err.message, 'error'); }
 }
 
@@ -1231,6 +1378,13 @@ function toggleOffering(id) {
   else selectedOfferingIds.push(id);
   const btn = document.getElementById('submitEnrollmentBtn');
   if (btn) btn.disabled = selectedOfferingIds.length === 0;
+}
+
+function filterEnrollOfferings() {
+  const val = document.getElementById('enrollSectionFilter')?.value?.toLowerCase() || '';
+  document.querySelectorAll('#enrollOfferingsList .enroll-card').forEach(card => {
+    card.style.display = !val || (card.dataset.section || '').toLowerCase() === val ? '' : 'none';
+  });
 }
 
 async function submitEnrollment() {
@@ -1320,6 +1474,7 @@ function buildProfileSidebar() {
       <a href="/admin/courses"><span class="nav-icon">📚</span> Courses</a>
       <a href="/admin/subjects"><span class="nav-icon">📖</span> Subjects</a>
       <a href="/admin/faculties"><span class="nav-icon">👨‍🏫</span> Faculties</a>
+      <a href="/admin/sections"><span class="nav-icon">📋</span> Sections</a>
       <a href="/admin/offerings"><span class="nav-icon">📅</span> Class Offerings</a>
       <div class="nav-section">Management</div>
       <a href="/admin/students"><span class="nav-icon">👥</span> Students</a>
@@ -1444,6 +1599,7 @@ document.addEventListener('DOMContentLoaded', function () {
   else if (page === 'admin_grades') { initAdminGrades(); }
   else if (page === 'admin_attendance') { initAdminAttendance(); }
   else if (page === 'admin_announcements') initAnnouncementsPage();
+  else if (page === 'admin_sections') initSections();
   else if (page === 'admin_reports') initReports();
   // Faculty pages
   else if (page === 'faculty_dashboard') renderFacultyDashboard();

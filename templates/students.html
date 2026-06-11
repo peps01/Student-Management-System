@@ -17,6 +17,7 @@
       <a href="/admin/courses"><span class="nav-icon">📚</span> Courses</a>
       <a href="/admin/subjects"><span class="nav-icon">📖</span> Subjects</a>
       <a href="/admin/faculties"><span class="nav-icon">👨‍🏫</span> Faculties</a>
+      <a href="/admin/sections"><span class="nav-icon">📋</span> Sections</a>
       <a href="/admin/offerings"><span class="nav-icon">📅</span> Class Offerings</a>
       <div class="nav-section">Management</div>
       <a href="/admin/students" class="active"><span class="nav-icon">👥</span> Students</a>
@@ -74,6 +75,7 @@
             <option value="4">4th Year</option>
             <option value="5">5th Year</option>
           </select></div>
+          <div class="form-group"><label>Section</label><select id="addSection" name="section_id" class="form-control"><option value="">No section</option></select></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" onclick="closeModal('addStudentModal')">Cancel</button>
@@ -99,6 +101,7 @@
             <option value="4">4th Year</option>
             <option value="5">5th Year</option>
           </select></div>
+          <div class="form-group"><label>Section</label><select id="editSection" name="section_id" class="form-control"><option value="">No section</option></select></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" onclick="closeModal('editStudentModal')">Cancel</button>

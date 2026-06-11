@@ -110,6 +110,28 @@ class Repository(ABC):
     def delete_faculty(self, faculty_id: int) -> bool:
         ...
 
+    # ---- Sections ----
+
+    @abstractmethod
+    def list_sections(self) -> list[dict]:
+        ...
+
+    @abstractmethod
+    def get_section(self, section_id: int) -> Optional[dict]:
+        ...
+
+    @abstractmethod
+    def add_section(self, data: dict) -> dict:
+        ...
+
+    @abstractmethod
+    def update_section(self, section_id: int, data: dict) -> bool:
+        ...
+
+    @abstractmethod
+    def delete_section(self, section_id: int) -> bool:
+        ...
+
     # ---- Class Offerings ----
 
     @abstractmethod
